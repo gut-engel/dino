@@ -67,8 +67,16 @@
     "console-methods": {
       "patterns": [
         {
+          "name": "invalid.illegal.dino",
+          "match": "\\bconsole\\.error\\b"
+        },
+        {
+          "name": "constant.character.escape.dino",
+          "match": "\\bconsole\\.warn\\b"
+        },
+        {
           "name": "support.function.dino",
-          "match": "\\bconsole\\.(log|warn|error|do)\\b"
+          "match": "\\bconsole\\.(log|do)\\b"
         }
       ]
     },
@@ -79,12 +87,16 @@
           "match": "\\b(if|else|for|while|switch|case|default|break|continue|return)\\b"
         },
         {
+          "name": "keyword.declaration.dino",
+          "match": "\\bfunc\\b"
+        },
+        {
           "name": "storage.modifier.dino",
           "match": "\\b(const|var)\\b"
         },
         {
           "name": "storage.type.dino",
-          "match": "\\b(bool|int|float|void)\\b"
+          "match": "\\b(bool|int|float|void|string)\\b"
         },
         {
           "name": "constant.language.dino",

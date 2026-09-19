@@ -3,7 +3,7 @@
 const vscode = require('vscode');
 
 const KEYWORDS = ['const', 'var', 'if', 'else', 'for', 'while', 'switch', 'case', 'default', 'break', 'continue', 'return'];
-const TYPES = ['bool', 'int', 'float', 'void'];
+const TYPES = ['bool', 'int', 'float', 'void', 'string'];
 const LITERALS = ['true', 'false'];
 const CONSOLE_METHODS = ['log', 'warn', 'error', 'do'];
 const METHOD_DOCS = {
@@ -63,7 +63,72 @@ const STATEMENT_SNIPPETS = [
     detail: 'input(prompt) - print a prompt and return the user\u2019s answer as a string',
     insertText: 'input(${1:prompt})',
   },
+  {
+    label: 'func',
+    detail: 'function declaration (top-level only, returns nothing)',
+    insertText: 'func ${1:name}(${2:type} ${3:param}) {\n\t$0\n}',
+  },
 ];
+
+// ── Function index ───────────────────────────────────────────────────────────
+// Scans the open document for `func name(params)` declarations so that
+// user-defined functions show up in completions, with a snippet for their
+// parameters. Results are cached per document version and rebuilt only when
+// the buffer changes.
+
+const MAX_CACHED_DOCS = 64;
+const funcCache = new Map(); // document uri -> { version, funcs }
+
+// Remove comments before indexing so commented-out functions are not
+// suggested. (Heuristic: a `//` inside a string literal would also be
+// stripped, which is acceptable for a completion index.)
+function stripComments(text) {
+  return text
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/\/\/[^\n]*/g, ' ');
+}
+
+function indexFunctions(document) {
+  const text = stripComments(document.getText());
+  const funcs = [];
+  // `func` must be the first token on its line (top-level style).
+  const re = /^\s*func\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)/gm;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const name = m[1];
+    // Don't shadow keywords, types or the built-in statement snippets.
+    if (
+      KEYWORDS.includes(name) ||
+      TYPES.includes(name) ||
+      LITERALS.includes(name) ||
+      STATEMENT_SNIPPETS.some((s) => s.label === name)
+    ) {
+      continue;
+    }
+    const rawParams = m[2].trim();
+    const params = [];
+    if (rawParams) {
+      for (const part of rawParams.split(',')) {
+        const pm = /^\s*(?:[A-Za-z_][A-Za-z0-9_]*)\s+([A-Za-z_][A-Za-z0-9_]*)\s*$/.exec(part);
+        if (pm) params.push(pm[1]);
+      }
+    }
+    funcs.push({ name, rawParams, params });
+  }
+  return funcs;
+}
+
+function getFunctionIndex(document) {
+  const key = document.uri.toString();
+  const cached = funcCache.get(key);
+  if (cached && cached.version === document.version) return cached.funcs;
+  const funcs = indexFunctions(document);
+  funcCache.set(key, { version: document.version, funcs });
+  if (funcCache.size > MAX_CACHED_DOCS) {
+    funcCache.delete(funcCache.keys().next().value); // drop the oldest document
+  }
+  return funcs;
+}
 
 function activate(context) {
   const provider = vscode.languages.registerCompletionItemProvider(
@@ -125,6 +190,19 @@ function activate(context) {
         consoleItem.range = range;
         consoleItem.documentation = 'Root object of the console.* built-ins (log, warn, error, do).';
         list.push(consoleItem);
+
+        // User-defined functions from the open document, with a snippet that
+        // fills in the parameter names.
+        for (const fn of getFunctionIndex(document)) {
+          const item = new vscode.CompletionItem(fn.name, vscode.CompletionItemKind.Function);
+          item.range = range;
+          item.detail = fn.rawParams
+            ? `func ${fn.name}(${fn.rawParams})`
+            : `func ${fn.name}()`;
+          const args = fn.params.map((p, i) => `\${${i + 1}:${p}}`).join(', ');
+          item.insertText = new vscode.SnippetString(fn.name + '(' + args + ')');
+          list.push(item);
+        }
 
         for (const st of STATEMENT_SNIPPETS) {
           const item = new vscode.CompletionItem(st.label, vscode.CompletionItemKind.Snippet);

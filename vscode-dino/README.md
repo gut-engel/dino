@@ -12,7 +12,7 @@ transpiler itself.
   - literals (`true`, `false`, numbers, strings, `$"..."` interpolated strings
     with `{expr}` placeholders)
   - built-ins (`console.log`, `console.warn`, `console.error`, `console.do`,
-    `delay`, `input`)
+    `delay`, `input`) — `warn` is color-coded yellow and `error` red
   - operators, comments (`//`, `/* */`)
 - **Completions** (built-in provider)
   - `console` is suggested when you start typing it

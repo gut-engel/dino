@@ -2,7 +2,7 @@
   "name": "dino-language",
   "displayName": "Dino Language Support",
   "description": "Syntax highlighting, completions and language configuration for the Dino (.dn) programming language that transpiles to C.",
-  "version": "0.1.2",
+  "version": "0.1.5",
   "publisher": "dino",
   "license": "MIT",
   "engines": {
@@ -42,6 +42,42 @@
         "scopeName": "source.dino",
         "path": "./syntaxes/dino.tmLanguage.json"
       }
-    ]
+    ],
+    "configurationDefaults": {
+      "editor.tokenColorCustomizations": {
+        "textMateRules": [
+          {
+            "scope": "invalid.illegal.dino",
+            "settings": {
+              "foreground": "#F44747"
+            }
+          },
+          {
+            "scope": "constant.character.escape.dino",
+            "settings": {
+              "foreground": "#E5C07B"
+            }
+          }
+        ]
+      },
+      "[light]": {
+        "editor.tokenColorCustomizations": {
+          "textMateRules": [
+            {
+              "scope": "invalid.illegal.dino",
+              "settings": {
+                "foreground": "#C62828"
+              }
+            },
+            {
+              "scope": "constant.character.escape.dino",
+              "settings": {
+                "foreground": "#B58900"
+              }
+            }
+          ]
+        }
+      }
+    }
   }
 }

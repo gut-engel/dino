@@ -9,6 +9,7 @@ typedef struct ASTNodeList ASTNodeList;
 typedef enum {
     AST_PROGRAM,
     AST_VAR_DECL,
+    AST_FUNC_DECL,
     AST_IF_STMT,
     AST_FOR_STMT,
     AST_WHILE_STMT,
@@ -39,6 +40,12 @@ typedef struct {
     ASTNode *initializer;
     bool is_const;
 } VarDecl;
+
+typedef struct {
+    StringView name;
+    ASTNodeList params; // AST_VAR_DECL nodes (type + name, no initializer)
+    ASTNode *body;      // AST_BLOCK
+} FuncDecl;
 
 typedef struct {
     ASTNode *condition;
@@ -76,6 +83,7 @@ struct ASTNode {
     union {
         struct { ASTNodeList statements; } program;
         VarDecl var_decl;
+        FuncDecl func_decl;
         IfStmt if_stmt;
         ForStmt for_stmt;
         WhileStmt while_stmt;

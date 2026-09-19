@@ -127,6 +127,13 @@ Installed files land in:
 - VS Code: `~/.vscode/extensions/dino.dino-language-<version>/`
 - VS Codium: `~/.vscode-oss/extensions/dino.dino-language-<version>/`
 
+The extension provides syntax highlighting (including the console
+log/warn/error colours and `func` declarations) and completions: `console.*`
+members, statement snippets, and **user-defined functions** — the open
+document is indexed for `func` declarations and each one is offered as
+`name(param, ...)` with tab stops per parameter. Completions refresh as the
+file changes; commented-out functions are not suggested.
+
 ### Rebuild after changes in `vscode-dino/`
 
 ```sh

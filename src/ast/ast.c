@@ -34,6 +34,8 @@ static const char *ast_node_type_name(ASTNodeType type) {
     switch (type) {
         case AST_PROGRAM: return "Program";
         case AST_VAR_DECL: return "VarDecl";
+
+        case AST_FUNC_DECL: return "FuncDecl";
         case AST_IF_STMT: return "IfStmt";
         case AST_FOR_STMT: return "ForStmt";
         case AST_WHILE_STMT: return "WhileStmt";
@@ -83,6 +85,18 @@ void ast_print(ASTNode *node, int indent) {
                 printf("initializer:\n");
                 ast_print(node->as.var_decl.initializer, indent + 2);
             }
+            break;
+        case AST_FUNC_DECL:
+            print_indent(indent + 1);
+            printf("name: %.*s\n", (int)node->as.func_decl.name.length, node->as.func_decl.name.data);
+            for (size_t p = 0; p < node->as.func_decl.params.count; p++) {
+                print_indent(indent + 1);
+                printf("param:\n");
+                ast_print(node->as.func_decl.params.nodes[p], indent + 2);
+            }
+            print_indent(indent + 1);
+            printf("body:\n");
+            ast_print(node->as.func_decl.body, indent + 2);
             break;
         case AST_IF_STMT:
             print_indent(indent + 1);

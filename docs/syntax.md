@@ -2,8 +2,9 @@
 
 Dino (`*.dn`) is a tiny, C-flavoured language that **transpiles to C** and is
 compiled with a C compiler. What you write is essentially a structured way of
-generating C: every Dino program maps to a single C `main()` function, and the
-standard library is a handful of built-ins (`console.*`, `delay`, `input`).
+generating C: top-level `func` definitions become C functions, the rest of the
+program maps to a single C `main()`, and the standard library is a handful of
+built-ins (`console.*`, `delay`, `input`).
 
 This page is the complete reference. For CLI usage see
 [commands.md](commands.md).
@@ -34,7 +35,7 @@ Identifiers start with a letter or `_` and continue with letters, digits or
 const  var    if     else   for    while
 switch case   default break  continue return
 bool   int    float  void   true   false
-console
+func   console
 ```
 
 > `return` is reserved by the lexer but is **not** usable as a statement —
@@ -62,6 +63,7 @@ Numbers have no exponent or hex forms. A `float` value is stored as a C
 | `int`     | `int`       |                              |
 | `float`   | `double`    | decimal literals → `double`  |
 | `void`    | `void`      |                              |
+| `string`  | `const char *` | parameter/return type for strings (a `const char *`) |
 | (none)    | `const char *` | inferred for string values |
 
 ### Type inference
@@ -103,6 +105,33 @@ var ready;                   // uninitialized (falls back to int)
 - The trailing `;` is required for declarations.
 - `=` appears **only** in declarations: there is no assignment operator, so a
   variable can only be set at declaration time (and later via `x++` / `x--`).
+
+### Functions
+
+```dn
+func name(type param, ...) {
+    // statements
+}
+```
+
+```dn
+func greet(string name) {
+    console.log($"Greetings to {name}!");
+}
+
+greet("Simon");          // call it like any C function
+```
+
+- `func` declarations are **top-level only** — nesting one inside another
+  block is a compile-time error.
+- Parameters are typed: `bool`, `int`, `float`, `void` or `string`. A missing
+  type is a syntax error.
+- Functions are `void` for now: they run statements but cannot return a value
+  (`return` is not parsed by this language yet).
+- Declaration order does not matter — functions are hoisted above `main()` in
+  the generated C, so a function can call another defined later.
+- String parameters are tracked like string variables, so
+  `console.log(name)` / `$"...{name}..."` print them with `%s`.
 
 ## 4. Expressions
 
@@ -263,7 +292,11 @@ They pass through to the generated C, so they behave exactly like C's
 ### `console.log`, `console.warn`, `console.error`
 
 Print to stdout (`log`) or stderr (`warn`, `error`). A newline is always
-appended; with no arguments they print a blank line.
+appended; with no arguments they print a blank line. When the program runs in
+a terminal, `console.warn` output is printed **yellow** and `console.error`
+**red** (ANSI escape codes); `console.log` keeps the terminal's default
+colour. The codes are suppressed when output is redirected/piped, or when the
+`NO_COLOR` environment variable is set.
 
 ```dn
 console.log();                 // blank line
@@ -349,5 +382,13 @@ The output C starts with a small runtime preamble:
   strings (8 rotating 1024-byte buffers).
 - `_dino_delay(seconds)` — `nanosleep` helper.
 - `_dino_input(prompt)` — prompt + `fgets` helper returning a string.
+- `_dino_console_output(stream, color, fmt, ...)` — used by
+  `console.warn`/`console.error`; `vfprintf`s to stderr and wraps the output
+  in an ANSI colour when the stream is a terminal (`NO_COLOR` / redirection
+  disables it).
+
+`func` declarations are emitted ahead of `main()` (hoisted), so calls from
+`main` (or other functions) resolve even when the definition comes later in
+the file.
 
 Programs compile with `gcc -Wall -Wextra -std=c11` without warnings.

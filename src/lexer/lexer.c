@@ -87,6 +87,7 @@ static Token lexer_identifier(Lexer *lexer, size_t start_line, size_t start_col)
     if (sv_eq(lexeme, sv_from_cstr("true"))) return make_token(TOKEN_TRUE, lexeme, start_line, start_col);
     if (sv_eq(lexeme, sv_from_cstr("false"))) return make_token(TOKEN_FALSE, lexeme, start_line, start_col);
     if (sv_eq(lexeme, sv_from_cstr("console"))) return make_token(TOKEN_CONSOLE, lexeme, start_line, start_col);
+    if (sv_eq(lexeme, sv_from_cstr("func"))) return make_token(TOKEN_FUNC, lexeme, start_line, start_col);
 
     return make_token(TOKEN_IDENTIFIER, lexeme, start_line, start_col);
 }

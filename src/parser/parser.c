@@ -487,6 +487,67 @@ static ASTNode *expression_statement(Parser *parser) {
     return node;
 }
 
+// func name(type param, ...) { body }
+static ASTNode *func_declaration(Parser *parser) {
+    Token keyword = parser->previous; // 'func'
+
+    if (!check(parser, TOKEN_IDENTIFIER)) {
+        error_current(parser, "Expect function name after 'func'.");
+        synchronize(parser);
+        return NULL;
+    }
+    Token name = parser->current;
+    advance(parser);
+
+    ASTNode *node = ast_new(parser->arena, AST_FUNC_DECL, keyword.line, keyword.column);
+    node->as.func_decl.name = name.lexeme;
+    node->as.func_decl.body = NULL;
+    ast_node_list_init(parser->arena, &node->as.func_decl.params);
+
+    consume(parser, TOKEN_LPAREN, "Expect '(' after function name.");
+
+    if (!check(parser, TOKEN_RPAREN)) {
+        do {
+            // Parameter: [type] name  (type may be a keyword type like int,
+            // or an identifier-based type like string)
+            ASTNode *param = ast_new(parser->arena, AST_VAR_DECL, parser->current.line, parser->current.column);
+            param->as.var_decl.is_const = false;
+            param->as.var_decl.initializer = NULL;
+
+            if (is_type_token(parser->current.type)) {
+                advance(parser);
+                param->as.var_decl.type = type_node(parser);
+            } else if (check(parser, TOKEN_IDENTIFIER)) {
+                Token t = parser->current;
+                advance(parser);
+                param->as.var_decl.type = ast_new(parser->arena, AST_IDENTIFIER, t.line, t.column);
+                param->as.var_decl.type->as.identifier.name = t.lexeme;
+            } else {
+                error_current(parser, "Expect parameter type.");
+                synchronize(parser);
+                return NULL;
+            }
+
+            if (check(parser, TOKEN_IDENTIFIER)) {
+                Token pname = parser->current;
+                advance(parser);
+                param->as.var_decl.name = pname.lexeme;
+            } else {
+                error_current(parser, "Expect parameter name.");
+                synchronize(parser);
+                return NULL;
+            }
+
+            ast_node_list_push(parser->arena, &node->as.func_decl.params, param);
+        } while (match(parser, TOKEN_COMMA));
+    }
+
+    consume(parser, TOKEN_RPAREN, "Expect ')' after parameters.");
+    node->as.func_decl.body = block(parser);
+    match(parser, TOKEN_SEMICOLON); // optional trailing ';' e.g. '};'
+    return node;
+}
+
 static ASTNode *statement(Parser *parser) {
     if (match(parser, TOKEN_IF)) return if_statement(parser);
     if (match(parser, TOKEN_FOR)) return for_statement(parser);
@@ -524,6 +585,11 @@ static ASTNode *statement(Parser *parser) {
 }
 
 static ASTNode *declaration(Parser *parser) {
+    if (match(parser, TOKEN_FUNC)) {
+        ASTNode *node = func_declaration(parser);
+        if (parser->panic_mode) synchronize(parser);
+        return node;
+    }
     if (match(parser, TOKEN_VAR) || match(parser, TOKEN_CONST)) {
         ASTNode *node = var_declaration(parser);
         if (parser->panic_mode) synchronize(parser);

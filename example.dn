@@ -1,10 +1,16 @@
 const bool boolean = true;
 
+func greet(string name) {
+    console.log($"Greetings to {name}!\n")
+}
+
 if (boolean) {
     console.log("this is a log \n");
     console.warn("this is a warning \n");
     console.error("this is an error \n");
 };
+
+greet(input("type your name: "))
 
 for (var i = 0; i<10; i++) {
     switch (i) {
@@ -21,3 +27,5 @@ for (var i = 0; i<10; i++) {
 
 delay(1);   // freeze for one second
 delay(0.5); // ...or a fraction
+
+greet("Stefan");

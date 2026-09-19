@@ -27,6 +27,7 @@ const char *token_type_name(TokenType type) {
         case TOKEN_TRUE: return "TRUE";
         case TOKEN_FALSE: return "FALSE";
         case TOKEN_CONSOLE: return "CONSOLE";
+        case TOKEN_FUNC: return "FUNC";
         case TOKEN_PLUS: return "PLUS";
         case TOKEN_MINUS: return "MINUS";
         case TOKEN_STAR: return "STAR";

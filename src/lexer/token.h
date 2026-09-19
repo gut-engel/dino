@@ -33,6 +33,7 @@ typedef enum {
     TOKEN_TRUE,
     TOKEN_FALSE,
     TOKEN_CONSOLE,
+    TOKEN_FUNC,
 
     // Operators
     TOKEN_PLUS,

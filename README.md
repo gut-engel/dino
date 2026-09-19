@@ -6,9 +6,9 @@ resulting executable is placed next to your input file.
 
 ![docs](docs/) — full documentation lives in [`docs/`](docs/README.md):
 
-- **[Language reference](docs/syntax.md)** — types, declarations, statements,
-  expressions, interpolated strings, built-ins (`console.*`, `delay`,
-  `input`), compile-time errors.
+- **[Language reference](docs/syntax.md)** — types, declarations, `func`
+  functions, statements, expressions, interpolated strings, built-ins
+  (`console.*`, `delay`, `input`), compile-time errors.
 - **[Commands](docs/commands.md)** — `dino` CLI usage, Makefile targets, the
   VS Code / VS Codium extension commands, quick start.
 

@@ -37,6 +37,7 @@ static void emit_type(Codegen *cg, StringView type_sv) {
     if (sv_eq(type_sv, sv_from_cstr("int")))      { emit(cg, "int");    return; }
     if (sv_eq(type_sv, sv_from_cstr("float")))    { emit(cg, "double"); return; }
     if (sv_eq(type_sv, sv_from_cstr("void")))     { emit(cg, "void");   return; }
+    if (sv_eq(type_sv, sv_from_cstr("string")))   { emit(cg, "const char *"); return; }
     // user-defined or opaque type
     emit_sv(cg, type_sv);
 }
@@ -137,8 +138,10 @@ static void emit_interpolated_expression(Codegen *cg, StringView sv) {
     sb_free(&args);
 }
 
-// Emit the actual print/system call for the given mode.
-static void emit_interpolated_string(Codegen *cg, StringView sv, InterpMode mode) {
+// Emit the actual print/system call for the given mode. `color` is a C string
+// literal ANSI escape sequence (e.g. "\\033[33m") used by warn/error on
+// stderr, or NULL for uncoloured output.
+static void emit_interpolated_string(Codegen *cg, StringView sv, InterpMode mode, const char *color) {
     StringBuilder fmt = sb_new();
     StringBuilder args = sb_new();
     build_interp_parts(cg, sv, &fmt, &args);
@@ -156,7 +159,10 @@ static void emit_interpolated_string(Codegen *cg, StringView sv, InterpMode mode
             emit(cg, ")");
             break;
         case INTERP_PRINT_STDERR:
-            emit(cg, "fprintf(stderr, ");
+            emit(cg, "_dino_console_output(stderr, ");
+            if (color) { emit(cg, "\""); emit(cg, color); emit(cg, "\""); }
+            else emit(cg, "NULL");
+            emit(cg, ", ");
             sb_append(&cg->out, fmt_sv);
             if (args.length > 0) {
                 emit(cg, ", ");
@@ -334,10 +340,10 @@ static void codegen_expression(Codegen *cg, ASTNode *node) {
                     bool is_interp = nargs == 1 &&
                                      node->as.call_expr.arguments.nodes[0]->type == AST_INTERPOLATED_STRING;
 
-                    // console.do(...) → shell out
+                    // console.do(...) → shell out (never coloured)
                     if (sv_eq(prop, sv_from_cstr("do"))) {
                         if (is_interp) {
-                            emit_interpolated_string(cg, node->as.call_expr.arguments.nodes[0]->as.interpolated_string.value, INTERP_SYSTEM);
+                            emit_interpolated_string(cg, node->as.call_expr.arguments.nodes[0]->as.interpolated_string.value, INTERP_SYSTEM, NULL);
                         } else if (nargs == 1) {
                             emit(cg, "system(");
                             codegen_expression(cg, node->as.call_expr.arguments.nodes[0]);
@@ -348,10 +354,14 @@ static void codegen_expression(Codegen *cg, ASTNode *node) {
                         break;
                     }
 
-                    // Interpolated string: print to stdout (log) or stderr (warn/error)
+                    // Interpolated string: print to stdout (log) or stderr
+                    // (warn yellow / error red).
                     if (is_interp) {
+                        const char *color = NULL;
+                        if (sv_eq(prop, sv_from_cstr("warn"))) color = "\\033[33m";
+                        else if (sv_eq(prop, sv_from_cstr("error"))) color = "\\033[31m";
                         InterpMode mode = sv_eq(prop, sv_from_cstr("log")) ? INTERP_PRINT : INTERP_PRINT_STDERR;
-                        emit_interpolated_string(cg, node->as.call_expr.arguments.nodes[0]->as.interpolated_string.value, mode);
+                        emit_interpolated_string(cg, node->as.call_expr.arguments.nodes[0]->as.interpolated_string.value, mode, color);
                         break;
                     }
 
@@ -359,7 +369,17 @@ static void codegen_expression(Codegen *cg, ASTNode *node) {
                     bool is_log = sv_eq(prop, sv_from_cstr("log"));
                     bool is_stderr = sv_eq(prop, sv_from_cstr("warn")) || sv_eq(prop, sv_from_cstr("error"));
                     if (is_log || is_stderr) {
-                        emit(cg, is_log ? "printf(" : "fprintf(stderr, ");
+                        const char *color = NULL;
+                        if (sv_eq(prop, sv_from_cstr("warn"))) color = "\\033[33m";
+                        else if (sv_eq(prop, sv_from_cstr("error"))) color = "\\033[31m";
+                        if (is_log) {
+                            emit(cg, "printf(");
+                        } else {
+                            emit(cg, "_dino_console_output(stderr, ");
+                            if (color) { emit(cg, "\""); emit(cg, color); emit(cg, "\""); }
+                            else emit(cg, "NULL");
+                            emit(cg, ", ");
+                        }
                         if (nargs == 0) {
                             emit(cg, "\"\\n\"");
                         } else {
@@ -401,6 +421,12 @@ static void codegen_expression(Codegen *cg, ASTNode *node) {
             }
 
             // General function call
+            if (callee->type == AST_CALL_EXPR) {
+                // No first-class functions: calling the result of a call is
+                // usually a stray '()' typo, e.g. console.error()("msg").
+                error_at_node(cg, node, "Cannot call the result of a call (stray '()'?)");
+                break;
+            }
             codegen_expression(cg, callee);
             emit(cg, "(");
             for (size_t i = 0; i < nargs; i++) {
@@ -433,6 +459,44 @@ static void codegen_expression(Codegen *cg, ASTNode *node) {
 }
 
 // ── Statement codegen ────────────────────────────────────────────────────────
+
+// Emit a top-level function definition. Functions are void for now (Dino does
+// not parse return statements yet). String parameters are scoped into the
+// string-variable registry so console.log / {param} interpolation print %s.
+static void codegen_func_decl(Codegen *cg, ASTNode *node) {
+    emit(cg, "static __attribute__((unused)) void ");
+    emit_sv(cg, node->as.func_decl.name);
+    emit(cg, "(");
+    for (size_t i = 0; i < node->as.func_decl.params.count; i++) {
+        if (i > 0) emit(cg, ", ");
+        ASTNode *param = node->as.func_decl.params.nodes[i];
+        emit_type(cg, param->as.var_decl.type->as.identifier.name);
+        emit(cg, " ");
+        emit_sv(cg, param->as.var_decl.name);
+    }
+    emit(cg, ") {\n");
+    cg->indent_level++;
+
+    size_t saved_string_vars = cg->string_vars_count;
+    for (size_t i = 0; i < node->as.func_decl.params.count; i++) {
+        ASTNode *param = node->as.func_decl.params.nodes[i];
+        if (sv_eq(param->as.var_decl.type->as.identifier.name, sv_from_cstr("string"))) {
+            note_string_var(cg, param->as.var_decl.name);
+        }
+    }
+
+    if (node->as.func_decl.body) {
+        ASTNode *body = node->as.func_decl.body;
+        for (size_t i = 0; i < body->as.block.statements.count; i++) {
+            codegen_statement(cg, body->as.block.statements.nodes[i]);
+        }
+    }
+
+    cg->string_vars_count = saved_string_vars;
+    cg->indent_level--;
+    emit_indent(cg);
+    emit(cg, "}\n");
+}
 
 // Emit a control-flow body: blocks start immediately with '{' on the current
 // line; anything else falls through to normal statement codegen.
@@ -602,6 +666,10 @@ static void codegen_statement(Codegen *cg, ASTNode *node) {
             emit_line(cg);
             break;
 
+        case AST_FUNC_DECL:
+            error_at_node(cg, node, "Functions must be declared at the top level, not inside a block");
+            break;
+
         default:
             error_at_node(cg, node, "Cannot generate statement for this node");
             break;
@@ -626,6 +694,7 @@ char *codegen_generate(Arena *arena, ASTNode *program, char **error_out) {
     emit(&cg, "#include <string.h>\n");
     emit(&cg, "#include <stdbool.h>\n");
     emit(&cg, "#include <stdarg.h>\n");
+    emit(&cg, "#include <unistd.h>\n");
     emit(&cg, "#include <time.h>\n");
     emit(&cg, "\n");
     // Runtime helper for interpolated strings used in expression context
@@ -667,12 +736,35 @@ char *codegen_generate(Arena *arena, ASTNode *program, char **error_out) {
     emit(&cg, "    return line;\n");
     emit(&cg, "}\n");
     emit(&cg, "\n");
+    // Runtime helper for console.warn / console.error: writes to stderr,
+    // colouring the output yellow (warn) / red (error) when the stream is a
+    // terminal. Disabled by NO_COLOR or when output is redirected/piped.
+    emit(&cg, "__attribute__((unused)) static void _dino_console_output(FILE *stream, const char *color, const char *fmt, ...) {\n");
+    emit(&cg, "    va_list ap;\n");
+    emit(&cg, "    if (color && !getenv(\"NO_COLOR\") && isatty(fileno(stream))) fputs(color, stream);\n");
+    emit(&cg, "    va_start(ap, fmt);\n");
+    emit(&cg, "    vfprintf(stream, fmt, ap);\n");
+    emit(&cg, "    va_end(ap);\n");
+    emit(&cg, "    if (color && !getenv(\"NO_COLOR\") && isatty(fileno(stream))) fputs(\"\\033[0m\", stream);\n");
+    emit(&cg, "}\n");
+    emit(&cg, "\n");
+
+    // Hoist user-defined functions above main() so main can call them.
+    for (size_t i = 0; i < program->as.program.statements.count; i++) {
+        ASTNode *stmt = program->as.program.statements.nodes[i];
+        if (stmt->type == AST_FUNC_DECL) {
+            codegen_func_decl(&cg, stmt);
+        }
+    }
+    emit(&cg, "\n");
 
     // Generate all statements inside main()
     emit(&cg, "int main(void) {\n");
     cg.indent_level = 1;
     for (size_t i = 0; i < program->as.program.statements.count; i++) {
-        codegen_statement(&cg, program->as.program.statements.nodes[i]);
+        ASTNode *stmt = program->as.program.statements.nodes[i];
+        if (stmt->type == AST_FUNC_DECL) continue; // already hoisted
+        codegen_statement(&cg, stmt);
     }
     emit(&cg, "    return 0;\n");
     emit(&cg, "}\n");
