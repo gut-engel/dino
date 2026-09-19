@@ -3,13 +3,13 @@ const string array = ["John", "Alex", "Stefan"];
 const dict dictionary = {"Name": "John", "Age": "15", "Favorite food": "noodles"};
 const class counters {
     func count(max) {
-        for (var i = 0; i<max; i++) {
+        for (var i = 0; i<=max; i++) {
             console.log(i);
         };
     };
 
     func countBackwards(start) {
-        for (var i = start; i>0; i--) {
+        for (var i = start; i>=0; i--) {
             console.log(i);
         };
     };
@@ -64,5 +64,5 @@ console.log(array[2]);//Outputs "Stefan"
 console.log(array["Stefan"]);//Outputs 2
 console.log(array.len);//Outputs 3
 
-counters.count(15); //Outputs 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14
-counters.countBackwards(4); //Outputs 4 3 2 1
+counters.count(15); //Outputs 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15
+counters.countBackwards(4); //Outputs 4 3 2 1 0
