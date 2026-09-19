@@ -1,16 +1,19 @@
 {
   "name": "dino-language",
   "displayName": "Dino Language Support",
-  "description": "Syntax highlighting, snippets and language configuration for the Dino (.dn) programming language that transpiles to C.",
-  "version": "0.1.0",
+  "description": "Syntax highlighting, completions and language configuration for the Dino (.dn) programming language that transpiles to C.",
+  "version": "0.1.2",
   "publisher": "dino",
   "license": "MIT",
   "engines": {
     "vscode": "^1.75.0"
   },
+  "main": "./src/extension.js",
+  "activationEvents": [
+    "onLanguage:dino"
+  ],
   "categories": [
-    "Programming Languages",
-    "Snippets"
+    "Programming Languages"
   ],
   "keywords": [
     "dino",
@@ -38,12 +41,6 @@
         "language": "dino",
         "scopeName": "source.dino",
         "path": "./syntaxes/dino.tmLanguage.json"
-      }
-    ],
-    "snippets": [
-      {
-        "language": "dino",
-        "path": "./snippets/dino.code-snippets"
       }
     ]
   }

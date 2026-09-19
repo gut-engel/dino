@@ -41,6 +41,27 @@ static void emit_type(Codegen *cg, StringView type_sv) {
     emit_sv(cg, type_sv);
 }
 
+// Registry of variables whose (inferred) type is a string, so that printing
+// code (console.log / interpolated strings / console.do) can pick %s vs %d.
+static void note_string_var(Codegen *cg, StringView name) {
+    for (size_t i = 0; i < cg->string_vars_count; i++) {
+        if (sv_eq(cg->string_vars[i], name)) return;
+    }
+    if (cg->string_vars_count >= cg->string_vars_cap) {
+        size_t cap = cg->string_vars_cap ? cg->string_vars_cap * 2 : 8;
+        cg->string_vars = realloc(cg->string_vars, sizeof(StringView) * cap);
+        cg->string_vars_cap = cap;
+    }
+    cg->string_vars[cg->string_vars_count++] = name;
+}
+
+static bool is_string_var(Codegen *cg, StringView name) {
+    for (size_t i = 0; i < cg->string_vars_count; i++) {
+        if (sv_eq(cg->string_vars[i], name)) return true;
+    }
+    return false;
+}
+
 // Render a string literal, converting Dino escape sequences to C where needed.
 // Strips surrounding quotes and re-emits with " prefix/suffix.
 static void emit_string_literal(Codegen *cg, StringView sv) {
@@ -69,7 +90,7 @@ typedef enum {
 
 // Split an interpolated string into a printf format string (with quotes)
 // and a comma-prefixed argument list. sv includes surrounding quotes.
-static void build_interp_parts(StringView sv, StringBuilder *fmt, StringBuilder *args) {
+static void build_interp_parts(Codegen *cg, StringView sv, StringBuilder *fmt, StringBuilder *args) {
     sb_append_char(fmt, '"');
     size_t i = 2; // skip '$' and opening quote
     while (i < sv.length - 1) { // stop before closing quote
@@ -80,7 +101,16 @@ static void build_interp_parts(StringView sv, StringBuilder *fmt, StringBuilder 
             while (i < sv.length - 1 && sv.data[i] != '}') i++;
             StringView expr = sv_from_parts(sv.data + start, i - start);
             bool is_string = expr.length > 0 && expr.data[0] == '"';
+            if (!is_string) {
+                // Trim whitespace and check whether the expression names a
+                // variable that holds a string (e.g. name from input()).
+                size_t s = 0, e = expr.length;
+                while (s < e && (expr.data[s] == ' ' || expr.data[s] == '\t')) s++;
+                while (e > s && (expr.data[e - 1] == ' ' || expr.data[e - 1] == '\t')) e--;
+                is_string = is_string_var(cg, sv_from_parts(expr.data + s, e - s));
+            }
             sb_append_cstr(fmt, is_string ? "%s" : "%d");
+            if (args->length > 0) sb_append_cstr(args, ", ");
             sb_append(args, expr);
             i++; // skip '}'
         } else {
@@ -95,7 +125,7 @@ static void build_interp_parts(StringView sv, StringBuilder *fmt, StringBuilder 
 static void emit_interpolated_expression(Codegen *cg, StringView sv) {
     StringBuilder fmt = sb_new();
     StringBuilder args = sb_new();
-    build_interp_parts(sv, &fmt, &args);
+    build_interp_parts(cg, sv, &fmt, &args);
     emit(cg, "_dino_fmt(");
     sb_append(&cg->out, sv_from_parts(fmt.data, fmt.length));
     if (args.length > 0) {
@@ -111,7 +141,7 @@ static void emit_interpolated_expression(Codegen *cg, StringView sv) {
 static void emit_interpolated_string(Codegen *cg, StringView sv, InterpMode mode) {
     StringBuilder fmt = sb_new();
     StringBuilder args = sb_new();
-    build_interp_parts(sv, &fmt, &args);
+    build_interp_parts(cg, sv, &fmt, &args);
     StringView fmt_sv = sv_from_parts(fmt.data, fmt.length);
     StringView args_sv = sv_from_parts(args.data, args.length);
 
@@ -161,6 +191,25 @@ static void emit_interpolated_string(Codegen *cg, StringView sv, InterpMode mode
     sb_free(&args);
 }
 
+// True if an initializer expression produces a string value. Understanding
+// which calls return strings is what lets `var x = input(...)` infer
+// `const char *` instead of falling back to `int`.
+static bool initializer_is_string(ASTNode *initializer) {
+    if (!initializer) return false;
+    switch (initializer->type) {
+        case AST_STRING:
+        case AST_INTERPOLATED_STRING:
+            return true;
+        case AST_CALL_EXPR: {
+            ASTNode *callee = initializer->as.call_expr.callee;
+            return callee->type == AST_IDENTIFIER &&
+                   sv_eq(callee->as.identifier.name, sv_from_cstr("input"));
+        }
+        default:
+            return false;
+    }
+}
+
 // Best-effort type inference from an initializer expression. Emits the type
 // (with trailing space) and returns true, or false if nothing can be inferred.
 static bool emit_inferred_type(Codegen *cg, ASTNode *initializer) {
@@ -179,8 +228,12 @@ static bool emit_inferred_type(Codegen *cg, ASTNode *initializer) {
         }
         case AST_STRING:
         case AST_INTERPOLATED_STRING:
-            emit(cg, "const char *");
-            return true;
+        case AST_CALL_EXPR:
+            if (initializer_is_string(initializer)) {
+                emit(cg, "const char *");
+                return true;
+            }
+            return false;
         default:
             return false;
     }
@@ -259,6 +312,20 @@ static void codegen_expression(Codegen *cg, ASTNode *node) {
                 break;
             }
 
+            // input(prompt) builtin → _dino_input() runtime helper. Prints the
+            // prompt and returns the user's answer as a string.
+            if (callee->type == AST_IDENTIFIER &&
+                sv_eq(callee->as.identifier.name, sv_from_cstr("input"))) {
+                if (nargs != 1) {
+                    error_at_node(cg, node, "input() expects exactly 1 argument (the prompt)");
+                    break;
+                }
+                emit(cg, "_dino_input(");
+                codegen_expression(cg, node->as.call_expr.arguments.nodes[0]);
+                emit(cg, ")");
+                break;
+            }
+
             // console.* builtins
             if (callee->type == AST_MEMBER_EXPR) {
                 ASTNode *obj = callee->as.member_expr.object;
@@ -304,6 +371,9 @@ static void codegen_expression(Codegen *cg, ASTNode *node) {
                                     case AST_STRING:
                                     case AST_INTERPOLATED_STRING:
                                         emit(cg, "%s");
+                                        break;
+                                    case AST_IDENTIFIER:
+                                        emit(cg, is_string_var(cg, arg->as.identifier.name) ? "%s" : "%d");
                                         break;
                                     default:
                                         emit(cg, "%d");
@@ -405,6 +475,9 @@ static void codegen_statement(Codegen *cg, ASTNode *node) {
                 codegen_expression(cg, node->as.var_decl.initializer);
             }
             emit(cg, ";");
+            if (initializer_is_string(node->as.var_decl.initializer)) {
+                note_string_var(cg, node->as.var_decl.name);
+            }
             emit_line(cg);
             break;
         }
@@ -444,6 +517,9 @@ static void codegen_statement(Codegen *cg, ASTNode *node) {
                     if (init->as.var_decl.initializer) {
                         emit(cg, " = ");
                         codegen_expression(cg, init->as.var_decl.initializer);
+                    }
+                    if (initializer_is_string(init->as.var_decl.initializer)) {
+                        note_string_var(cg, init->as.var_decl.name);
                     }
                 } else {
                     codegen_expression(cg, node->as.for_stmt.init);
@@ -574,6 +650,23 @@ char *codegen_generate(Arena *arena, ASTNode *program, char **error_out) {
     emit(&cg, "    nanosleep(&ts, NULL);\n");
     emit(&cg, "}\n");
     emit(&cg, "\n");
+    // Runtime helper for input(prompt): prints the prompt, reads a line from
+    // stdin and returns it as a string (trailing newline stripped).
+    emit(&cg, "__attribute__((unused)) static char *_dino_input(const char *prompt) {\n");
+    emit(&cg, "    static char line[1024];\n");
+    emit(&cg, "    size_t len = 0;\n");
+    emit(&cg, "    if (prompt && prompt[0]) {\n");
+    emit(&cg, "        fputs(prompt, stdout);\n");
+    emit(&cg, "        fflush(stdout);\n");
+    emit(&cg, "    }\n");
+    emit(&cg, "    line[0] = '\\0';\n");
+    emit(&cg, "    if (fgets(line, sizeof(line), stdin)) {\n");
+    emit(&cg, "        len = strlen(line);\n");
+    emit(&cg, "        while (len > 0 && (line[len - 1] == '\\n' || line[len - 1] == '\\r')) line[--len] = '\\0';\n");
+    emit(&cg, "    }\n");
+    emit(&cg, "    return line;\n");
+    emit(&cg, "}\n");
+    emit(&cg, "\n");
 
     // Generate all statements inside main()
     emit(&cg, "int main(void) {\n");
@@ -587,11 +680,13 @@ char *codegen_generate(Arena *arena, ASTNode *program, char **error_out) {
     if (cg.had_error) {
         *error_out = cg.error_msg.data;
         sb_free(&cg.out);
+        free(cg.string_vars);
         return NULL;
     }
 
     *error_out = NULL;
     sb_free(&cg.error_msg);
+    free(cg.string_vars);
     // Transfer ownership of the buffer to the caller
     char *result = cg.out.data;
     cg.out.data = NULL;

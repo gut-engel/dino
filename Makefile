@@ -22,13 +22,15 @@ VSIX_SRC = \
 	$(VSCE_DIR)/language-configuration.json \
 	$(VSCE_DIR)/README.md \
 	$(VSCE_DIR)/CHANGELOG.md \
+	$(VSCE_DIR)/src/extension.js \
 	$(VSCE_DIR)/syntaxes/dino.tmLanguage.json \
-	$(VSCE_DIR)/snippets/dino.code-snippets \
 	$(VSCE_DIR)/vsix/extension.vsixmanifest \
 	$(VSCE_DIR)/vsix/content-types.xml \
 	$(VSCE_DIR)/vsix/build_vsix.py
 
 all: $(TARGET) $(VSIX)
+
+vsix: $(VSIX)
 
 $(TARGET): $(SRC)
 	$(CC) $(CFLAGS) $(INC) -o $(TARGET) $(SRC)
@@ -41,4 +43,4 @@ clean:
 	rm -rf CCode
 	rm -f $(VSIX)
 
-.PHONY: all clean
+.PHONY: all clean vsix

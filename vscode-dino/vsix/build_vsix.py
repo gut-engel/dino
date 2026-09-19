@@ -26,8 +26,8 @@ EXTENSION_FILES = [
     "language-configuration.json",
     "README.md",
     "CHANGELOG.md",
+    os.path.join("src", "extension.js"),
     os.path.join("syntaxes", "dino.tmLanguage.json"),
-    os.path.join("snippets", "dino.code-snippets"),
 ]
 
 # Fixed timestamp so builds are reproducible.

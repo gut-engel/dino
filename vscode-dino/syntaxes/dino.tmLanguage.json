@@ -7,7 +7,7 @@
     { "include": "#strings" },
     { "include": "#console-methods" },
     { "include": "#keywords" },
-    { "include": "#delay" },
+    { "include": "#builtins" },
     { "include": "#numbers" },
     { "include": "#operators" },
     { "include": "#identifiers" }
@@ -96,11 +96,11 @@
         }
       ]
     },
-    "delay": {
+    "builtins": {
       "patterns": [
         {
           "name": "support.function.builtin.dino",
-          "match": "\\bdelay\\b"
+          "match": "\\b(delay|input)\\b"
         }
       ]
     },

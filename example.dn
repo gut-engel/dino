@@ -1,15 +1,18 @@
 const bool boolean = true;
 
 if (boolean) {
-    console.log();
-    console.warn();
-    console.error();
+    console.log("this is a log \n");
+    console.warn("this is a warning \n");
+    console.error("this is an error \n");
 };
 
 for (var i = 0; i<10; i++) {
     switch (i) {
         case (i<3) {
-            
+            console.log($"under 3: {i}\n");
+        };
+        case (i>3) {
+            console.log($"over 3: {i}\n");
         };
     };
 };
