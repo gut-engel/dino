@@ -69,6 +69,7 @@ static Token lexer_identifier(Lexer *lexer, size_t start_line, size_t start_col)
 
     // Check for keywords
     if (sv_eq(lexeme, sv_from_cstr("const"))) return make_token(TOKEN_CONST, lexeme, start_line, start_col);
+    if (sv_eq(lexeme, sv_from_cstr("sauerkraut"))) return make_token(TOKEN_CONST, lexeme, start_line, start_col);
     if (sv_eq(lexeme, sv_from_cstr("var"))) return make_token(TOKEN_VAR, lexeme, start_line, start_col);
     if (sv_eq(lexeme, sv_from_cstr("if"))) return make_token(TOKEN_IF, lexeme, start_line, start_col);
     if (sv_eq(lexeme, sv_from_cstr("else"))) return make_token(TOKEN_ELSE, lexeme, start_line, start_col);
