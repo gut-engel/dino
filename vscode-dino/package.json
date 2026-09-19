@@ -2,16 +2,15 @@
   "name": "dino-language",
   "displayName": "Dino Language Support",
   "description": "Syntax highlighting, completions, validation diagnostics and language configuration for the Dino (.dn) programming language that transpiles to C.",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "publisher": "dino",
   "license": "MIT",
+  "icon": "icons/icon.png",
   "engines": {
     "vscode": "^1.75.0"
   },
   "main": "./src/extension.js",
-  "activationEvents": [
-    "onLanguage:dino"
-  ],
+  "activationEvents": [],
   "categories": [
     "Programming Languages"
   ],

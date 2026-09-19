@@ -24,6 +24,7 @@ VSIX_SRC = \
 	$(VSCE_DIR)/CHANGELOG.md \
 	$(VSCE_DIR)/src/extension.js \
 	$(VSCE_DIR)/syntaxes/dino.tmLanguage.json \
+	$(VSCE_DIR)/icons/icon.png \
 	$(VSCE_DIR)/vsix/extension.vsixmanifest \
 	$(VSCE_DIR)/vsix/content-types.xml \
 	$(VSCE_DIR)/vsix/build_vsix.py

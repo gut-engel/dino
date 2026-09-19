@@ -28,6 +28,7 @@ EXTENSION_FILES = [
     "CHANGELOG.md",
     os.path.join("src", "extension.js"),
     os.path.join("syntaxes", "dino.tmLanguage.json"),
+    os.path.join("icons", "icon.png"),
 ]
 
 # Fixed timestamp so builds are reproducible.
@@ -67,10 +68,11 @@ def main():
     pkg = load_package_json()
     out_path = os.path.join(OUT_DIR, vsix_filename(pkg))
 
-    # extension/... files
+    # extension/... files (read as bytes so binary assets such as the PNG
+    # extension icon are packaged untouched)
     entries = {}
     for rel in EXTENSION_FILES:
-        with open(os.path.join(EXT_DIR, rel), encoding="utf-8") as f:
+        with open(os.path.join(EXT_DIR, rel), "rb") as f:
             entries["extension/" + rel] = f.read()
 
     # required OPC-level files

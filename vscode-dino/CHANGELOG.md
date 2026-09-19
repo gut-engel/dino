@@ -1,5 +1,11 @@
 # Change Log
 
+## [0.1.7] - 2026-09-19
+
+- The extension now has an **icon**: the green dino + `dino.dn` wordmark from
+  `icons/extension.svg`, rendered to `icons/icon.png` (256×256, white
+  background). Shown in the Extensions view.
+
 ## [0.1.6] - 2026-09-19
 
 - **Real validation diagnostics**: the editor now runs the `dino` compiler in
