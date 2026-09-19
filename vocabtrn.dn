@@ -1,0 +1,16 @@
+const dict vocab = {"hello": "Hallo", "duck": "Ente", "dog": "Hund"};
+var amountOfFalseAnswers = 0;
+var string notAnsweredCorrectly= [];
+
+for (var i = 0; i < vocab.len; i++) {
+    if (vocab.key[i] == input($"Was heißt {vocab.value[i]} auf Englisch?")) {
+        console.log("Richtig!");
+    }
+    else {
+        console.error($"Falsch, richtig wäre {vocab.key[i]}");
+        amountOfFalseAnswers++;
+        push(notAnsweredCorrectly, vocab.value[i]);
+    };
+};
+
+console.log($"Diese Vokabeln musst du noch üben {notAnsweredCorrectly}");
