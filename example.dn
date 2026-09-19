@@ -1,4 +1,6 @@
 const bool boolean = true;
+const string array = ["John", "Alex", "Stefan"];
+const dict dictionary = {"Name": "John", "Age": "15", "Favorite food": "noodles"};
 
 func greet(string name) {
     console.log($"Greetings to {name}!\n");
@@ -32,3 +34,19 @@ delay(1);   // freeze for one second
 delay(0.5); // ...or a fraction
 
 greet("Stefan");
+
+try {
+   console.log(anundefinedvariable);
+};
+catch (e) {
+    console.log(e);
+};
+
+console.log(dictionary.key[2]); //Outputs "Favorite food"
+console.log(dictionary.value(2))//Outputs "noodles"
+console.log(dictionary.valueOfKey[2]);//Outputs "noodles"
+console.log(dictionary.valueOfKey["Age"]); //Outputs "15"
+
+console.log(array[2]);//Outputs "Stefan"
+console.log(array["Stefan"]);//Outputs 2
+console.log(array.len);//Outputs 3
