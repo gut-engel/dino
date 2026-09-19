@@ -63,6 +63,51 @@ static bool is_string_var(Codegen *cg, StringView name) {
     return false;
 }
 
+// ── Lexical scopes (identifier validation) ──────────────────────────────────
+// A flat symbol list with a mark stack of scope boundaries. Mirrors the
+// scoping of the generated C (blocks nest, shadowing is allowed).
+
+static void scope_push(Codegen *cg) {
+    if (cg->scope_marks_count >= cg->scope_marks_cap) {
+        size_t cap = cg->scope_marks_cap ? cg->scope_marks_cap * 2 : 8;
+        cg->scope_marks = realloc(cg->scope_marks, sizeof(size_t) * cap);
+        cg->scope_marks_cap = cap;
+    }
+    cg->scope_marks[cg->scope_marks_count++] = cg->scope_count;
+}
+
+static void scope_pop(Codegen *cg) {
+    if (cg->scope_marks_count == 0) return;
+    cg->scope_count = cg->scope_marks[--cg->scope_marks_count];
+}
+
+static void scope_declare(Codegen *cg, StringView name) {
+    if (cg->scope_count >= cg->scope_cap) {
+        size_t cap = cg->scope_cap ? cg->scope_cap * 2 : 16;
+        cg->scope_names = realloc(cg->scope_names, sizeof(StringView) * cap);
+        cg->scope_cap = cap;
+    }
+    cg->scope_names[cg->scope_count++] = name;
+}
+
+static bool scope_has(Codegen *cg, StringView name) {
+    for (size_t i = 0; i < cg->scope_count; i++) {
+        if (sv_eq(cg->scope_names[i], name)) return true;
+    }
+    return false;
+}
+
+static void scope_free(Codegen *cg) {
+    free(cg->scope_names);
+    free(cg->scope_marks);
+    cg->scope_names = NULL;
+    cg->scope_count = 0;
+    cg->scope_cap = 0;
+    cg->scope_marks = NULL;
+    cg->scope_marks_count = 0;
+    cg->scope_marks_cap = 0;
+}
+
 // Render a string literal, converting Dino escape sequences to C where needed.
 // Strips surrounding quotes and re-emits with " prefix/suffix.
 static void emit_string_literal(Codegen *cg, StringView sv) {
@@ -272,9 +317,29 @@ static void codegen_expression(Codegen *cg, ASTNode *node) {
             emit_interpolated_expression(cg, node->as.interpolated_string.value);
             break;
 
-        case AST_IDENTIFIER:
+        case AST_IDENTIFIER: {
+            // Value-context identifiers must reference a declared variable,
+            // a function parameter, one of the built-in names, or a loop
+            // control word (the parser represents break/continue as plain
+            // identifiers). Call targets are NOT validated here: Dino lets
+            // you invoke any C symbol visible to the generated code.
+            StringView name = node->as.identifier.name;
+            if (!scope_has(cg, name) &&
+                !sv_eq(name, sv_from_cstr("console")) &&
+                !sv_eq(name, sv_from_cstr("delay")) &&
+                !sv_eq(name, sv_from_cstr("input")) &&
+                !sv_eq(name, sv_from_cstr("break")) &&
+                !sv_eq(name, sv_from_cstr("continue"))) {
+                char buf[160];
+                snprintf(buf, sizeof(buf),
+                         "Unknown identifier '%.*s' (declare it with var/const first)",
+                         (int)name.length, name.data);
+                error_at_node(cg, node, buf);
+                break;
+            }
             emit_sv(cg, node->as.identifier.name);
             break;
+        }
 
         case AST_BINARY_EXPR:
             emit(cg, "(");
@@ -427,7 +492,14 @@ static void codegen_expression(Codegen *cg, ASTNode *node) {
                 error_at_node(cg, node, "Cannot call the result of a call (stray '()'?)");
                 break;
             }
-            codegen_expression(cg, callee);
+            // Identifier call targets are NOT validated as Dino identifiers:
+            // Dino lets you call any C symbol visible to the generated code
+            // (documented escape hatch), so emit the name verbatim.
+            if (callee->type == AST_IDENTIFIER) {
+                emit_sv(cg, callee->as.identifier.name);
+            } else {
+                codegen_expression(cg, callee);
+            }
             emit(cg, "(");
             for (size_t i = 0; i < nargs; i++) {
                 if (i > 0) emit(cg, ", ");
@@ -476,10 +548,12 @@ static void codegen_func_decl(Codegen *cg, ASTNode *node) {
     }
     emit(cg, ") {\n");
     cg->indent_level++;
+    scope_push(cg);
 
     size_t saved_string_vars = cg->string_vars_count;
     for (size_t i = 0; i < node->as.func_decl.params.count; i++) {
         ASTNode *param = node->as.func_decl.params.nodes[i];
+        scope_declare(cg, param->as.var_decl.name);
         if (sv_eq(param->as.var_decl.type->as.identifier.name, sv_from_cstr("string"))) {
             note_string_var(cg, param->as.var_decl.name);
         }
@@ -493,6 +567,7 @@ static void codegen_func_decl(Codegen *cg, ASTNode *node) {
     }
 
     cg->string_vars_count = saved_string_vars;
+    scope_pop(cg);
     cg->indent_level--;
     emit_indent(cg);
     emit(cg, "}\n");
@@ -501,6 +576,7 @@ static void codegen_func_decl(Codegen *cg, ASTNode *node) {
 // Emit a control-flow body: blocks start immediately with '{' on the current
 // line; anything else falls through to normal statement codegen.
 static void codegen_braced_body(Codegen *cg, ASTNode *body) {
+    scope_push(cg);
     if (body->type == AST_BLOCK) {
         emit(cg, "{\n");
         cg->indent_level++;
@@ -513,6 +589,7 @@ static void codegen_braced_body(Codegen *cg, ASTNode *body) {
     } else {
         codegen_statement(cg, body);
     }
+    scope_pop(cg);
 }
 
 static void codegen_statement(Codegen *cg, ASTNode *node) {
@@ -542,6 +619,7 @@ static void codegen_statement(Codegen *cg, ASTNode *node) {
             if (initializer_is_string(node->as.var_decl.initializer)) {
                 note_string_var(cg, node->as.var_decl.name);
             }
+            scope_declare(cg, node->as.var_decl.name);
             emit_line(cg);
             break;
         }
@@ -560,6 +638,9 @@ static void codegen_statement(Codegen *cg, ASTNode *node) {
             break;
 
         case AST_FOR_STMT:
+            // The loop variable (and any var declared in the init) is in
+            // scope for the whole for statement, matching the generated C.
+            scope_push(cg);
             emit_indent(cg);
             emit(cg, "for (");
             if (node->as.for_stmt.init) {
@@ -585,6 +666,7 @@ static void codegen_statement(Codegen *cg, ASTNode *node) {
                     if (initializer_is_string(init->as.var_decl.initializer)) {
                         note_string_var(cg, init->as.var_decl.name);
                     }
+                    scope_declare(cg, init->as.var_decl.name);
                 } else {
                     codegen_expression(cg, node->as.for_stmt.init);
                 }
@@ -599,6 +681,7 @@ static void codegen_statement(Codegen *cg, ASTNode *node) {
             }
             emit(cg, ") ");
             codegen_braced_body(cg, node->as.for_stmt.body);
+            scope_pop(cg);
             break;
 
         case AST_WHILE_STMT:
@@ -620,9 +703,11 @@ static void codegen_statement(Codegen *cg, ASTNode *node) {
                 codegen_expression(cg, c->as.case_stmt.condition);
                 emit(cg, ") {\n");
                 cg->indent_level++;
+                scope_push(cg);
                 for (size_t j = 0; j < c->as.case_stmt.body.count; j++) {
                     codegen_statement(cg, c->as.case_stmt.body.nodes[j]);
                 }
+                scope_pop(cg);
                 cg->indent_level--;
                 emit_indent(cg);
                 emit(cg, "}\n");
@@ -633,9 +718,11 @@ static void codegen_statement(Codegen *cg, ASTNode *node) {
                 emit_indent(cg);
                 emit(cg, "else {\n");
                 cg->indent_level++;
+                scope_push(cg);
                 for (size_t j = 0; j < dc->as.case_stmt.body.count; j++) {
                     codegen_statement(cg, dc->as.case_stmt.body.nodes[j]);
                 }
+                scope_pop(cg);
                 cg->indent_level--;
                 emit_indent(cg);
                 emit(cg, "}\n");
@@ -644,6 +731,7 @@ static void codegen_statement(Codegen *cg, ASTNode *node) {
         }
 
         case AST_BLOCK: {
+            scope_push(cg);
             emit_indent(cg);
             emit(cg, "{\n");
             cg->indent_level++;
@@ -654,6 +742,7 @@ static void codegen_statement(Codegen *cg, ASTNode *node) {
             emit_indent(cg);
             emit(cg, "}");
             emit_line(cg);
+            scope_pop(cg);
             break;
         }
 
@@ -758,14 +847,18 @@ char *codegen_generate(Arena *arena, ASTNode *program, char **error_out) {
     }
     emit(&cg, "\n");
 
-    // Generate all statements inside main()
+    // Generate all statements inside main(). The top level of main() is a
+    // scope of its own for validation purposes (top-level vars are C locals
+    // of main, invisible to hoisted functions — matching the generated C).
     emit(&cg, "int main(void) {\n");
     cg.indent_level = 1;
+    scope_push(&cg);
     for (size_t i = 0; i < program->as.program.statements.count; i++) {
         ASTNode *stmt = program->as.program.statements.nodes[i];
         if (stmt->type == AST_FUNC_DECL) continue; // already hoisted
         codegen_statement(&cg, stmt);
     }
+    scope_pop(&cg);
     emit(&cg, "    return 0;\n");
     emit(&cg, "}\n");
 
@@ -773,12 +866,14 @@ char *codegen_generate(Arena *arena, ASTNode *program, char **error_out) {
         *error_out = cg.error_msg.data;
         sb_free(&cg.out);
         free(cg.string_vars);
+        scope_free(&cg);
         return NULL;
     }
 
     *error_out = NULL;
     sb_free(&cg.error_msg);
     free(cg.string_vars);
+    scope_free(&cg);
     // Transfer ownership of the buffer to the caller
     char *result = cg.out.data;
     cg.out.data = NULL;

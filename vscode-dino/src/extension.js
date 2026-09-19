@@ -1,6 +1,10 @@
 'use strict';
 
 const vscode = require('vscode');
+const childProcess = require('child_process');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 
 const KEYWORDS = ['const', 'var', 'if', 'else', 'for', 'while', 'switch', 'case', 'default', 'break', 'continue', 'return'];
 const TYPES = ['bool', 'int', 'float', 'void', 'string'];
@@ -130,7 +134,143 @@ function getFunctionIndex(document) {
   return funcs;
 }
 
+// ── Diagnostics (real validation) ────────────────────────────────────────────
+// Runs the `dino` compiler in --check mode on the current document (debounced)
+// and publishes a red squiggle + message for every error, using the editor's
+// Diagnostics API. The compiler is the source of truth: syntax errors from the
+// parser and semantic errors from codegen both print one
+//   <anything> (line N, col N): message
+// line per problem, which we parse below. --check never writes files and does
+// not invoke gcc, so validation is cheap and side-effect free.
+
+const diagnostics = vscode.languages.createDiagnosticCollection('dino');
+const VALIDATE_DEBOUNCE_MS = 400;
+let validateTimer = null;
+let compilerMissingWarned = false;
+
+// Where to find the `dino` binary, in order of preference:
+//   1. an explicitly-set "dino.compilerPath" (absolute path, or 'dino' for PATH)
+//   2. <workspaceFolder>/dino, or <documentFolder>/dino
+//      (e.g. while developing the compiler itself, or when opening a single file)
+//   3. 'dino' on PATH
+function findCompiler(document) {
+  const cfg = vscode.workspace.getConfiguration('dino', document.uri);
+  const info = cfg.inspect('compilerPath');
+  const explicit =
+    info && (info.workspaceFolderValue || info.workspaceValue || info.globalValue);
+  if (explicit) return explicit;
+
+  const candidates = [];
+  const ws = vscode.workspace.getWorkspaceFolder(document.uri);
+  if (ws) candidates.push(path.join(ws.uri.fsPath, 'dino'));
+  candidates.push(path.join(path.dirname(document.fileName), 'dino'));
+  for (const c of candidates) {
+    try {
+      fs.accessSync(c, fs.constants.X_OK);
+      return c;
+    } catch (e) {
+      // not present or not executable — try the next candidate
+    }
+  }
+  return 'dino';
+}
+
+// Turn a 1-based line/col from the compiler into a squiggle range, extending
+// over the offending word (or the rest of the line) so the underline shows
+// exactly what the compiler is complaining about.
+function rangeForError(document, line, col) {
+  const lineText = document.lineAt(line - 1).text;
+  let start = Math.min(Math.max(col - 1, 0), lineText.length);
+  let end = start;
+  while (end < lineText.length && /[A-Za-z0-9_]/.test(lineText[end])) end++;
+  if (end === start) end = Math.min(lineText.length, start + 1);
+  return new vscode.Range(line - 1, start, line - 1, end);
+}
+
+function parseDiagnostics(document, stderr) {
+  const diags = [];
+  const re = /line (\d+), col (\d+)[^\n]*:\s*(.*)$/gm;
+  let m;
+  while ((m = re.exec(stderr)) !== null) {
+    const line = parseInt(m[1], 10);
+    const col = parseInt(m[2], 10);
+    if (line < 1 || line > document.lineCount) continue;
+    const diag = new vscode.Diagnostic(
+      rangeForError(document, line, col),
+      m[3].trim(),
+      vscode.DiagnosticSeverity.Error
+    );
+    diag.source = 'dino';
+    diags.push(diag);
+  }
+  return diags;
+}
+
+function validateDocument(document) {
+  if (document.languageId !== 'dino') return;
+  const compiler = findCompiler(document);
+
+  // Validate the LIVE buffer, not the file on disk: write the current text to
+  // a throwaway .dn file (--check never writes anything itself) so unsaved
+  // edits produce diagnostics immediately.
+  const tmp = path.join(os.tmpdir(), `dino-check-${process.pid}-${Date.now()}.dn`);
+  try {
+    fs.writeFileSync(tmp, document.getText());
+  } catch (e) {
+    return; // cannot create the temp file; skip this round
+  }
+
+  childProcess.execFile(
+    compiler,
+    [tmp, '--check'],
+    { timeout: 10000 },
+    (err, stdout, stderr) => {
+      try {
+        fs.unlinkSync(tmp);
+      } catch (e) {
+        // best effort cleanup
+      }
+      if (err && err.code === 'ENOENT') {
+        diagnostics.set(document.uri, []);
+        if (!compilerMissingWarned) {
+          compilerMissingWarned = true;
+          vscode.window.showWarningMessage(
+            `Dino compiler not found ('${compiler}'). Set "dino.compilerPath" in settings to enable validation.`
+          );
+        }
+        return;
+      }
+      diagnostics.set(document.uri, parseDiagnostics(document, String(stderr || '')));
+    }
+  );
+}
+
+function scheduleValidation(document) {
+  clearTimeout(validateTimer);
+  validateTimer = setTimeout(() => validateDocument(document), VALIDATE_DEBOUNCE_MS);
+}
+
 function activate(context) {
+  context.subscriptions.push(diagnostics);
+
+  // Validate on edits (debounced) and when documents open/close.
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeTextDocument((e) => {
+      if (e.document.languageId === 'dino') scheduleValidation(e.document);
+    }),
+    vscode.workspace.onDidOpenTextDocument((d) => {
+      if (d.languageId === 'dino') scheduleValidation(d);
+    }),
+    vscode.workspace.onDidCloseTextDocument((d) => {
+      diagnostics.delete(d.uri);
+    })
+  );
+
+  // Validate anything already open when the extension activates.
+  for (const doc of vscode.workspace.textDocuments) {
+    if (doc.languageId === 'dino') scheduleValidation(doc);
+  }
+
   const provider = vscode.languages.registerCompletionItemProvider(
     'dino',
     {

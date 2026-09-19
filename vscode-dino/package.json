@@ -1,8 +1,8 @@
 {
   "name": "dino-language",
   "displayName": "Dino Language Support",
-  "description": "Syntax highlighting, completions and language configuration for the Dino (.dn) programming language that transpiles to C.",
-  "version": "0.1.5",
+  "description": "Syntax highlighting, completions, validation diagnostics and language configuration for the Dino (.dn) programming language that transpiles to C.",
+  "version": "0.1.6",
   "publisher": "dino",
   "license": "MIT",
   "engines": {
@@ -76,6 +76,16 @@
               }
             }
           ]
+        }
+      }
+    },
+    "configuration": {
+      "title": "Dino",
+      "properties": {
+        "dino.compilerPath": {
+          "type": "string",
+          "default": "dino",
+          "description": "Path to the `dino` compiler binary used for validation. Defaults to `dino` on PATH, or <workspaceFolder>/dino when that exists and is executable."
         }
       }
     }

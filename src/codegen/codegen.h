@@ -13,6 +13,14 @@ typedef struct {
     StringView *string_vars; // names declared/initialized as strings
     size_t string_vars_count;
     size_t string_vars_cap;
+    // Lexical scope tracking: validates that value-context identifiers
+    // reference a declared variable/parameter (or a known built-in).
+    StringView *scope_names;
+    size_t scope_count;
+    size_t scope_cap;
+    size_t *scope_marks;
+    size_t scope_marks_count;
+    size_t scope_marks_cap;
 } Codegen;
 
 // Generates C source from the AST. Returns a heap-allocated string that the

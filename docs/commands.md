@@ -109,10 +109,10 @@ CFLAGS="-O2" make
 
 ```sh
 # VS Code
-code --install-extension dino-language-0.1.2.vsix
+code --install-extension dino-language-<version>.vsix
 
 # VS Codium (note: --force must come BEFORE --install-extension)
-codium --force --install-extension dino-language-0.1.2.vsix
+codium --force --install-extension dino-language-<version>.vsix
 ```
 
 ### Verify / manage
@@ -128,11 +128,30 @@ Installed files land in:
 - VS Codium: `~/.vscode-oss/extensions/dino.dino-language-<version>/`
 
 The extension provides syntax highlighting (including the console
-log/warn/error colours and `func` declarations) and completions: `console.*`
-members, statement snippets, and **user-defined functions** — the open
-document is indexed for `func` declarations and each one is offered as
-`name(param, ...)` with tab stops per parameter. Completions refresh as the
-file changes; commented-out functions are not suggested.
+log/warn/error colours and `func` declarations), **validation diagnostics**
+and completions: `console.*` members, statement snippets, and
+**user-defined functions** — the open document is indexed for `func`
+declarations and each one is offered as `name(param, ...)` with tab stops per
+parameter. Completions refresh as the file changes; commented-out functions
+are not suggested.
+
+### Validation (red squiggles)
+
+The extension runs the `dino` compiler in `--check` mode on the **live buffer**
+(debounced ~400 ms; the text is written to a temp file so unsaved edits are
+checked) and reports every syntax/semantic error as a red squiggle with the
+compiler's message in the hover and Problems panel. This catches undeclared
+identifiers (e.g. a bare `stefan;`), scope mistakes, bad built-in calls and
+syntax errors — the same messages the CLI prints. Diagnostics clear once the
+file is valid; nothing is written into the project.
+
+Where the compiler binary is found:
+
+1. the `dino.compilerPath` setting (absolute path or a name on `PATH`);
+2. otherwise `<workspaceFolder>/dino`, or `<documentFolder>/dino`, if that
+   exists and is executable (so it works out of the box in the compiler's own
+   repo, even when a single file is opened);
+3. otherwise `dino` on `PATH`.
 
 ### Rebuild after changes in `vscode-dino/`
 
@@ -151,9 +170,11 @@ loaded.
 
 - Syntax highlighting for `.dn` (keywords, types, literals, strings,
   interpolated strings, `console.*`, built-ins, operators, comments)
+- Validation diagnostics from the `dino --check` compiler (red squiggles +
+  messages; see above)
 - Completion provider: `console` + `console.log/warn/error/do`, keywords,
-  types, literals, and statement snippets (`for`, `while`, `if`, `switch`,
-  `var`, `const`, `delay`, `input`)
+  types, literals, user-defined functions, and statement snippets (`for`,
+  `while`, `if`, `switch`, `var`, `const`, `func`, `delay`, `input`)
 - Language configuration: bracket auto-pairs, comment toggling (`Ctrl+/`),
   block indentation
 

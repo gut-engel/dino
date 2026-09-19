@@ -1,5 +1,17 @@
 # Change Log
 
+## [0.1.6] - 2026-09-19
+
+- **Real validation diagnostics**: the editor now runs the `dino` compiler in
+  `--check` mode on the live buffer (debounced) and shows red squiggles with
+  the compiler's message for syntax and semantic errors, e.g. an undeclared
+  identifier like `stefan;` is flagged instead of silently passing.
+- New `dino.compilerPath` setting to point at the compiler binary; defaults
+  to `dino` on `PATH`, or `<workspaceFolder>/dino` when present and
+  executable (so it works out of the box in the compiler's own repo).
+- Validation uses the unsaved buffer (written to a temp file), so errors
+  appear while typing, and never writes into the project.
+
 ## [0.1.5] - 2026-09-19
 
 - Completions now include **user-defined functions**: the open document is

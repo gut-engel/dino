@@ -171,7 +171,11 @@ var c = some_func(1, 2, 3);        // general call → C function call
 
 - Postfix `++` / `--` operate on any expression (`i++`).
 - General calls emit a plain C call `name(arg, arg, ...)` so any symbol
-  available to the generated C (includes, helpers) can be invoked.
+  available to the generated C (includes, helpers) can be invoked. Because
+  of this escape hatch, **call targets are not validated** by the compiler:
+  `some_func(...)` is accepted even if `some_func` is not declared (the C
+  compiler will complain later if it truly does not exist). *Value*
+  identifiers, by contrast, are validated — see §7.
 
 ### 4.4 Interpolated strings
 
@@ -368,9 +372,17 @@ console.log($"Hello, {name}");
 - **Lexer / parser**: reported as
   `[line N, col N] Error at 'tok': message` with the error count, e.g.
   `3 syntax error(s) in 'file.dn'.`
-- **Codegen**: reported as
-  `Codegen error (line N, col N): message` — e.g. unknown `console.*` method,
-  or a wrong argument count for `delay` / `input`.
+- **Semantic / codegen**: reported as
+  `Codegen error (line N, col N): message`. This covers:
+  - unknown `console.*` method, or a wrong argument count for `delay` / `input`;
+  - an **unknown identifier** used as a value — e.g. a bare `stefan;` where no
+    `var`/`const`/parameter named `stefan` is in scope
+    (`Unknown identifier 'stefan' (declare it with var/const first)`);
+  - calling the result of a call (a stray `()`, e.g. `console.error()("x")`).
+- **Scope rules** mirror the generated C: a variable is visible from its
+  declaration to the end of the enclosing `{ ... }` block, and `for`-init
+  variables are visible for the whole `for` statement only, so using `i` after
+  the loop is reported. Functions cannot see top-level `main` variables.
 - A C compile failure is reported with the failing compiler's output; the
   generated C is still left at `CCode/<file>.c` for inspection.
 
