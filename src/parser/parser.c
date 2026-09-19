@@ -7,6 +7,7 @@ Parser parser_new(const char *source, size_t length, Arena *arena) {
     parser.previous = (Token){.type = TOKEN_EOF, .lexeme = sv_from_cstr(""), .line = 0, .column = 0};
     parser.had_error = false;
     parser.panic_mode = false;
+    parser.error_count = 0;
     parser.arena = arena;
     return parser;
 }
@@ -22,6 +23,7 @@ static void error_at(Parser *parser, Token token, const char *message) {
     if (parser->panic_mode) return;
     parser->panic_mode = true;
     parser->had_error = true;
+    parser->error_count++;
 
     fprintf(stderr, "[line %zu, col %zu] Error", token.line, token.column);
     if (token.type == TOKEN_EOF) {
@@ -539,7 +541,15 @@ ASTNode *parser_parse(Parser *parser) {
         if (stmt) {
             ast_node_list_push(parser->arena, &program->as.program.statements, stmt);
         }
-        if (parser->panic_mode) synchronize(parser);
+        if (parser->panic_mode) {
+            synchronize(parser);
+            // synchronize() stops on '}' without consuming it so enclosing
+            // blocks can consume it. At the top level a stray '}' would
+            // otherwise loop forever — consume it to make progress.
+            if (parser->current.type == TOKEN_RBRACE) {
+                advance(parser);
+            }
+        }
     }
 
     // EOF is fine as-is

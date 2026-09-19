@@ -1,23 +1,32 @@
 # Dino
 
-A tiny language (`*.dn`) that transpiles to C. The generated C is written to a
-`CCode/` folder and can be compiled with any C11 compiler.
+A tiny language (`*.dn`) that transpiles to C and compiles it with a C
+compiler (default: `gcc`). The generated C is written to a `CCode/` folder
+and the resulting executable is placed next to your input file.
 
 ## Build
 
 ```sh
-make               # builds the `dino` transpiler and the VS Code extension package
-make dino          # only the transpiler
+make               # builds the `dino` compiler and the VS Code extension package
+make dino          # only the compiler
 make vsix          # only the extension package -> dino-language-<ver>.vsix
 ```
 
 ## Usage
 
 ```sh
-./dino example.dn              # writes CCode/example.c
-./dino example.dn -o out.c     # writes to out.c instead
-gcc CCode/example.c -o example # compile the generated C
+./dino example.dn                  # transpiles to CCode/example.c and compiles it to ./example
+./example                          # run the compiled program
+./dino example.dn -o my_prog       # name the executable differently
+./dino example.dn --doNotCompile   # only write CCode/example.c, skip the C compiler
+./dino example.dn --check          # check syntax/semantics only; writes nothing
+CC=clang ./dino example.dn         # use a different C compiler (default: gcc)
 ```
+
+Syntax errors in your `.dn` file are reported with file, line and column
+before anything is written, and the compiler is only invoked after its
+command has been found on `$PATH`. If the C compiler is missing you get a
+clear error instead of a confusing failure.
 
 ## Language
 
@@ -52,8 +61,11 @@ var flag = false;                   // inferred _Bool
 
 ### Features
 
-- Lexer → parser (AST) → C code generation, split across `src/lexer`,
-  `src/parser`, `src/ast`, and `src/codegen`
+- Lexer → parser (AST) → C code generation → C compile, split across
+  `src/lexer`, `src/parser`, `src/ast`, and `src/codegen`
+- Syntax checking with line/column error reports (`--check` mode included)
+- Automatic compilation with `gcc` (or `$CC`), with a PATH check for the
+  compiler command
 - `const` / `var` declarations with explicit (`int`, `float`, `bool`, `void`)
   or inferred types
 - `if`/`else`, `while`, `for`, `switch`/`case`/`default`

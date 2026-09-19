@@ -10,6 +10,7 @@ typedef struct {
     Token previous;
     bool had_error;
     bool panic_mode;
+    size_t error_count;
     Arena *arena;
 } Parser;
 

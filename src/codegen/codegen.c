@@ -319,6 +319,14 @@ static void codegen_expression(Codegen *cg, ASTNode *node) {
                         emit(cg, ")");
                         break;
                     }
+
+                    // Anything else on console.* is not a known builtin.
+                    char buf[160];
+                    snprintf(buf, sizeof(buf),
+                             "Unknown console method '%.*s' (expected log, warn, error or do)",
+                             (int)prop.length, prop.data);
+                    error_at_node(cg, node, buf);
+                    break;
                 }
             }
 
@@ -334,6 +342,15 @@ static void codegen_expression(Codegen *cg, ASTNode *node) {
         }
 
         case AST_MEMBER_EXPR:
+            if (node->as.member_expr.object->type == AST_IDENTIFIER &&
+                sv_eq(node->as.member_expr.object->as.identifier.name, sv_from_cstr("console"))) {
+                char buf[160];
+                snprintf(buf, sizeof(buf),
+                         "console can only be called as console.log/warn/error/do, got 'console.%.*s'",
+                         (int)node->as.member_expr.property.length, node->as.member_expr.property.data);
+                error_at_node(cg, node, buf);
+                break;
+            }
             codegen_expression(cg, node->as.member_expr.object);
             emit(cg, ".");
             emit_sv(cg, node->as.member_expr.property);

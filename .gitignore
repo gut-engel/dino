@@ -1,0 +1,7 @@
+# Build outputs
+dino
+dino-language-*.vsix
+CCode/
+
+# Object files
+*.o
