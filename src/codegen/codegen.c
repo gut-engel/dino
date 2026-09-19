@@ -134,6 +134,30 @@ static void class_free(Codegen *cg) {
     cg->class_cap = 0;
 }
 
+// How `dict.key[...]` / `dict.value[...]` compiles. `.value[key]` reads the
+// value stored under a key (forward lookup); `.key[value]` finds the key whose
+// stored value matches (reverse lookup). Anything else, and class fields named
+// `key`/`value`, use ordinary indexing.
+typedef enum {
+    DINO_INDEX_NORMAL,
+    DINO_INDEX_VALUE,
+    DINO_INDEX_KEY,
+} DinoIndexKind;
+
+static DinoIndexKind index_view_kind(Codegen *cg, ASTNode *index_node) {
+    if (index_node->type != AST_INDEX_EXPR) return DINO_INDEX_NORMAL;
+    ASTNode *obj = index_node->as.index_expr.object;
+    if (obj->type != AST_MEMBER_EXPR) return DINO_INDEX_NORMAL;
+    ASTNode *base = obj->as.member_expr.object;
+    if (base->type == AST_IDENTIFIER && class_find(cg, base->as.identifier.name)) {
+        return DINO_INDEX_NORMAL;
+    }
+    StringView prop = obj->as.member_expr.property;
+    if (sv_eq(prop, sv_from_cstr("value"))) return DINO_INDEX_VALUE;
+    if (sv_eq(prop, sv_from_cstr("key"))) return DINO_INDEX_KEY;
+    return DINO_INDEX_NORMAL;
+}
+
 // Built-in names that are always in scope.
 static bool is_builtin_name(StringView name) {
     return sv_eq(name, sv_from_cstr("console")) ||
@@ -193,8 +217,15 @@ static void emit_assignment_statement(Codegen *cg, ASTNode *node) {
         emit(cg, " = ");
         codegen_expression(cg, value);
     } else if (target->type == AST_INDEX_EXPR) {
+        // `dict.value[key] = v` writes into the dictionary itself rather than a
+        // temporary array returned by the `.value` view.
+        bool value_view = index_view_kind(cg, target) == DINO_INDEX_VALUE;
         emit(cg, "_dino_set(");
-        codegen_expression(cg, target->as.index_expr.object);
+        if (value_view) {
+            codegen_expression(cg, target->as.index_expr.object->as.member_expr.object);
+        } else {
+            codegen_expression(cg, target->as.index_expr.object);
+        }
         emit(cg, ", ");
         codegen_expression(cg, target->as.index_expr.index);
         emit(cg, ", ");
@@ -344,13 +375,24 @@ static void codegen_expression(Codegen *cg, ASTNode *node) {
             break;
         }
 
-        case AST_INDEX_EXPR:
-            emit(cg, "_dino_get(");
-            codegen_expression(cg, node->as.index_expr.object);
+        case AST_INDEX_EXPR: {
+            ASTNode *obj = node->as.index_expr.object;
+            DinoIndexKind kind = index_view_kind(cg, node);
+            if (kind == DINO_INDEX_KEY) {
+                emit(cg, "_dino_key_of_value(");
+                codegen_expression(cg, obj->as.member_expr.object);
+            } else if (kind == DINO_INDEX_VALUE) {
+                emit(cg, "_dino_get(");
+                codegen_expression(cg, obj->as.member_expr.object);
+            } else {
+                emit(cg, "_dino_get(");
+                codegen_expression(cg, obj);
+            }
             emit(cg, ", ");
             codegen_expression(cg, node->as.index_expr.index);
             emit(cg, ")");
             break;
+        }
 
         case AST_ASSIGN: {
             ASTNode *target = node->as.assign.target;
@@ -363,11 +405,17 @@ static void codegen_expression(Codegen *cg, ASTNode *node) {
                 emit(cg, ")");
             } else if (target->type == AST_INDEX_EXPR) {
                 // GCC statement expression: evaluate each part exactly once and
-                // yield the assigned value.
+                // yield the assigned value. `dict.value[key] = v` writes into
+                // the dictionary itself, not into a temporary values array.
+                DinoIndexKind kind = index_view_kind(cg, target);
                 emit(cg, "({ DinoValue _dino_tmp = ");
                 codegen_expression(cg, node->as.assign.value);
                 emit(cg, "; _dino_set(");
-                codegen_expression(cg, target->as.index_expr.object);
+                if (kind == DINO_INDEX_VALUE) {
+                    codegen_expression(cg, target->as.index_expr.object->as.member_expr.object);
+                } else {
+                    codegen_expression(cg, target->as.index_expr.object);
+                }
                 emit(cg, ", ");
                 codegen_expression(cg, target->as.index_expr.index);
                 emit(cg, ", _dino_tmp); _dino_tmp; })");

@@ -129,16 +129,16 @@ const STATEMENT_SNIPPETS = [
   },
 ];
 
-// ── Function index ───────────────────────────────────────────────────────────
-// Scans the open document for `func name(params)` declarations so that
-// user-defined functions show up in completions, with a snippet for their
-// parameters. Results are cached per document version and rebuilt only when
-// the buffer changes.
+// ── Symbol index ─────────────────────────────────────────────────────────────
+// Scans the open document for `func name(params)` declarations and for
+// `var`/`const` variables so that user-defined functions and variables both
+// show up in completions. Results are cached per document version and rebuilt
+// only when the buffer changes.
 
 const MAX_CACHED_DOCS = 64;
-const funcCache = new Map(); // document uri -> { version, funcs }
+const symbolCache = new Map(); // document uri -> { version, funcs, vars }
 
-// Remove comments before indexing so commented-out functions are not
+// Remove comments before indexing so commented-out declarations are not
 // suggested. (Heuristic: a `//` inside a string literal would also be
 // stripped, which is acceptable for a completion index.)
 function stripComments(text) {
@@ -147,23 +147,25 @@ function stripComments(text) {
     .replace(/\/\/[^\n]*/g, ' ');
 }
 
-function indexFunctions(document) {
-  const text = stripComments(document.getText());
+// Names we don't want to spend a completion slot on (keywords, built-in types,
+// literals and the statement snippets are already offered elsewhere).
+function isReservedName(name) {
+  return (
+    KEYWORDS.includes(name) ||
+    TYPES.includes(name) ||
+    LITERALS.includes(name) ||
+    STATEMENT_SNIPPETS.some((s) => s.label === name)
+  );
+}
+
+function indexFunctions(text) {
   const funcs = [];
   // `func` must be the first token on its line (top-level style).
   const re = /^\s*func\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)/gm;
   let m;
   while ((m = re.exec(text)) !== null) {
     const name = m[1];
-    // Don't shadow keywords, types or the built-in statement snippets.
-    if (
-      KEYWORDS.includes(name) ||
-      TYPES.includes(name) ||
-      LITERALS.includes(name) ||
-      STATEMENT_SNIPPETS.some((s) => s.label === name)
-    ) {
-      continue;
-    }
+    if (isReservedName(name)) continue;
     const rawParams = m[2].trim();
     const params = [];
     if (rawParams) {
@@ -177,16 +179,40 @@ function indexFunctions(document) {
   return funcs;
 }
 
-function getFunctionIndex(document) {
-  const key = document.uri.toString();
-  const cached = funcCache.get(key);
-  if (cached && cached.version === document.version) return cached.funcs;
-  const funcs = indexFunctions(document);
-  funcCache.set(key, { version: document.version, funcs });
-  if (funcCache.size > MAX_CACHED_DOCS) {
-    funcCache.delete(funcCache.keys().next().value); // drop the oldest document
+// Matches `[const|var] [type]? name [= value];` declarations; the variable name
+// is the last identifier before `=` or `;`. Class declarations
+// (`const class X {`) have no `=`/`;` after the name, so they are skipped.
+// Variables may shadow built-in type names (`array`, `string`, `dict`) and
+// snippet labels, so only true keywords/literals are excluded.
+function indexVariables(text) {
+  const vars = [];
+  const seen = new Set();
+  const re = /^\s*(const|var)\s+(?:(?:[A-Za-z_][A-Za-z0-9_]*)(?:\[\])?\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*(?:=|;)/gm;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const name = m[2];
+    if (seen.has(name) || KEYWORDS.includes(name) || LITERALS.includes(name)) continue;
+    seen.add(name);
+    vars.push({ name, detail: `${m[1]} ${name}` });
   }
-  return funcs;
+  return vars;
+}
+
+function getDocumentIndex(document) {
+  const key = document.uri.toString();
+  const cached = symbolCache.get(key);
+  if (cached && cached.version === document.version) return cached;
+  const text = stripComments(document.getText());
+  const entry = {
+    version: document.version,
+    funcs: indexFunctions(text),
+    vars: indexVariables(text),
+  };
+  symbolCache.set(key, entry);
+  if (symbolCache.size > MAX_CACHED_DOCS) {
+    symbolCache.delete(symbolCache.keys().next().value); // drop the oldest document
+  }
+  return entry;
 }
 
 // ── Diagnostics (real validation) ────────────────────────────────────────────
@@ -398,9 +424,10 @@ function activate(context) {
         consoleItem.documentation = 'Root object of the console.* built-ins (log, warn, error, do).';
         list.push(consoleItem);
 
-        // User-defined functions from the open document, with a snippet that
-        // fills in the parameter names.
-        for (const fn of getFunctionIndex(document)) {
+        // User-defined functions and variables from the open document.
+        // Functions get a snippet that fills in the parameter names.
+        const index = getDocumentIndex(document);
+        for (const fn of index.funcs) {
           const item = new vscode.CompletionItem(fn.name, vscode.CompletionItemKind.Function);
           item.range = range;
           item.detail = fn.rawParams
@@ -408,6 +435,12 @@ function activate(context) {
             : `func ${fn.name}()`;
           const args = fn.params.map((p, i) => `\${${i + 1}:${p}}`).join(', ');
           item.insertText = new vscode.SnippetString(fn.name + '(' + args + ')');
+          list.push(item);
+        }
+        for (const v of index.vars) {
+          const item = new vscode.CompletionItem(v.name, vscode.CompletionItemKind.Variable);
+          item.range = range;
+          item.detail = v.detail;
           list.push(item);
         }
 

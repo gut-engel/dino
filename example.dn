@@ -56,7 +56,7 @@ catch (e){
 };
 
 console.log(dictionary.key[2]); //Outputs "Favorite food"
-console.log(dictionary.value(2));//Outputs "noodles"
+console.log(dictionary.value[2]);//Outputs "noodles"
 console.log(dictionary.valueOfKey[2]);//Outputs "noodles"
 console.log(dictionary.valueOfKey["Age"]); //Outputs "15"
 

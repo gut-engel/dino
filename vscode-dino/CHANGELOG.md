@@ -1,5 +1,18 @@
 # Change Log
 
+## [0.1.12] - 2026-09-19
+
+- **Variable completions**: the document index now scans `var`/`const`
+  declarations in addition to `func` declarations, so user-defined variables
+  show up in completions (with a `var`/`const` detail). A variable may shadow a
+  built-in type name such as `array` or `dict` and is still indexed.
+- **Dictionary accessors**: `d.value[key]` returns the value stored under a key,
+  and `d.key[value]` returns the key whose stored value matches. An integer
+  argument that is not a stored key/value falls back to the *n*-th entry/key, so
+  the existing `d.key[2]`/`d.value[2]` forms keep working, and
+  `d.value[key] = x` now updates the dictionary in place. Documented in the
+  language reference.
+
 ## [0.1.11] - 2026-09-19
 
 - **`class` declarations**: a `class` is a static namespace of methods and

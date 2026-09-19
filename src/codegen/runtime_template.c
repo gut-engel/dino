@@ -349,6 +349,21 @@ static DinoValue _dino_get(DinoValue obj, DinoValue key) {
     return _dino_null();
 }
 
+/* Reverse dictionary lookup: the key whose stored value equals `val`.
+ * Falls back to positional access for a bare integer, so `d.key[n]` still
+ * selects the nth key when no value matches. Returns null when not found. */
+static DinoValue _dino_key_of_value(DinoValue obj, DinoValue val) {
+    if (obj.type != DINO_DICT) return _dino_null();
+    for (size_t i = 0; i < obj.as.dict->len; i++)
+        if (_dino_equals(obj.as.dict->vals[i], val)) return obj.as.dict->keys[i];
+    if (val.type == DINO_INT || val.type == DINO_FLOAT || val.type == DINO_BOOL) {
+        long long i = _dino_to_int(val);
+        if (i < 0) i += (long long)obj.as.dict->len;
+        if (i >= 0 && (size_t)i < obj.as.dict->len) return obj.as.dict->keys[i];
+    }
+    return _dino_null();
+}
+
 static void _dino_set(DinoValue obj, DinoValue key, DinoValue val) {
     if (obj.type == DINO_ARRAY) {
         long long i = _dino_to_int(key);

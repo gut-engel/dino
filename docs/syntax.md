@@ -308,10 +308,28 @@ The following member forms are also available as conveniences:
 | Member          | Meaning                                          |
 | --------------- | ------------------------------------------------ |
 | `.length` / `.len` | number of entries (or array elements)          |
-| `.key` / `.keys`   | array of keys                                   |
-| `.value` / `.values` | array of values                               |
+| `.keys`            | array of keys                                   |
+| `.values`          | array of values                                 |
 | `.valueOfKey`      | the dictionary itself (so `d.valueOfKey[k]` looks up `k`) |
 | `d.value(i)`       | the *i*-th value / value for key `i`            |
+
+A dictionary can also be read in both directions by indexing `.value` and
+`.key`:
+
+| Indexed form     | Meaning                                             |
+| ---------------- | --------------------------------------------------- |
+| `d.value[key]`   | the value stored under `key` (forward lookup, same as `d[key]`) |
+| `d.key[value]`   | the key whose stored value equals `value` (reverse lookup) |
+
+```dn
+var person = {"name": "Ada", age: 36};
+console.log(person.value["age"]);   // 36
+console.log(person.key[36]);        // "age"
+```
+
+`d.key[value]` yields `null` when no entry has that value. An integer argument
+that is not itself a value falls back to the *n*-th key (0-based, negatives from
+the end), so `d.key[0]` is the first key and `.value[i]` the *i*-th value.
 
 > The member names above are special; **any other** `x.name` is sugar for
 > `x["name"]` (a string-key lookup, yielding `null` when absent), so
