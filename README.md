@@ -52,7 +52,7 @@ console.warn("done");                      // stderr is fine too
 ```dn
 const bool boolean = true;          // typed constant
 
-// if / else — a trailing ';' after '}' is allowed
+// if / else — statements are terminated with ';' (after the closing '}')
 if (boolean) {
     console.log();                  // prints a blank line
     console.warn("to stderr");

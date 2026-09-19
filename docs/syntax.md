@@ -196,8 +196,28 @@ console.log($"sum: {1 + 2}");          // any expression
 
 ## 5. Statements
 
-Every statement ends with `;`. After a closing `}` of a block statement an
-extra `;` is allowed and conventional (`if (...) { } ; `).
+Every statement **must** end with `;`. This includes expression statements,
+`var`/`const` declarations, `break`/`continue`, and every block statement:
+`if` / `else`, `for`, `while`, `switch`, and each `case`/`default` body are all
+terminated by `;` after their closing `}`:
+
+```dn
+if (cond) {
+    // ...
+};                              // the ';' is required
+
+while (cond) {
+    // ...
+};
+
+for (var i = 0; i < 3; i++) {
+    // ...
+};
+```
+
+`func` declarations are the exception — they do not take a trailing `;` (a
+stray one is tolerated). Forgetting a `;` is a syntax error, e.g.
+`[line 3, col 1] Error at end: Expect ';' after expression.`
 
 ### Expression statement
 
@@ -211,11 +231,12 @@ i++;
 ```dn
 {
     console.log("inside");
-}
+};
 ```
 
-A block is a statement; the bodies of `if` / `for` / `while` / `case` **must**
-be a `{ ... }` block — a single statement without braces is a syntax error.
+A block is a statement (and therefore ends with `;`); the bodies of `if` /
+`for` / `while` / `case` **must** be a `{ ... }` block — a single statement
+without braces is a syntax error.
 
 ### `if` / `else`
 

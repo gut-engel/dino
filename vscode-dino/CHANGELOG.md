@@ -1,5 +1,17 @@
 # Change Log
 
+## [0.1.8] - 2026-09-19
+
+- **Semicolons are now required** after statements, matching the compiler's
+  stricter grammar: expression statements, `var`/`const`, `break`/`continue`,
+  and every block statement (`if`/`else`, `for`, `while`, `switch`, and each
+  `case`/`default` body) must end with `;`. `func` declarations are exempt.
+  The built-in `if` / `if else` / `for` / `while` snippets now insert the
+  trailing `;`.
+- Missing-semicolon diagnostics that point at the end of a file are now placed
+  at the end of the last line with content, so the red squiggle is visible
+  instead of landing on the trailing blank line.
+
 ## [0.1.7] - 2026-09-19
 
 - The extension now has an **icon**: the green dino + `dino.dn` wordmark from

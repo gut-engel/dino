@@ -312,8 +312,8 @@ static ASTNode *var_declaration(Parser *parser) {
         initializer = expression(parser);
     }
 
-    // Optional semicolon (the language allows both, like the example shows '};')
-    match(parser, TOKEN_SEMICOLON);
+    // A statement terminator is required.
+    consume(parser, TOKEN_SEMICOLON, "Expect ';' after variable declaration.");
 
     ASTNode *node = ast_new(parser->arena, AST_VAR_DECL, keyword.line, keyword.column);
     node->as.var_decl.name = name_token.lexeme;
@@ -323,7 +323,9 @@ static ASTNode *var_declaration(Parser *parser) {
     return node;
 }
 
-static ASTNode *if_statement(Parser *parser) {
+// Parses the if/else chain without the trailing ';' so that, for an
+// `else if` chain, only the outermost statement consumes the terminator.
+static ASTNode *if_statement_body(Parser *parser) {
     Token keyword = parser->previous; // 'if'
     consume(parser, TOKEN_LPAREN, "Expect '(' after 'if'.");
     ASTNode *condition = expression(parser);
@@ -335,18 +337,22 @@ static ASTNode *if_statement(Parser *parser) {
     if (match(parser, TOKEN_ELSE)) {
         if (check(parser, TOKEN_IF)) {
             advance(parser);
-            else_branch = if_statement(parser);
+            else_branch = if_statement_body(parser);
         } else {
             else_branch = block(parser);
         }
     }
 
-    match(parser, TOKEN_SEMICOLON); // optional trailing ';' after '}' e.g. '};'
-
     ASTNode *node = ast_new(parser->arena, AST_IF_STMT, keyword.line, keyword.column);
     node->as.if_stmt.condition = condition;
     node->as.if_stmt.then_branch = then_branch;
     node->as.if_stmt.else_branch = else_branch;
+    return node;
+}
+
+static ASTNode *if_statement(Parser *parser) {
+    ASTNode *node = if_statement_body(parser);
+    consume(parser, TOKEN_SEMICOLON, "Expect ';' after if statement.");
     return node;
 }
 
@@ -385,7 +391,7 @@ static ASTNode *for_statement(Parser *parser) {
     consume(parser, TOKEN_RPAREN, "Expect ')' after for clauses.");
 
     ASTNode *body = block(parser);
-    match(parser, TOKEN_SEMICOLON); // optional trailing ';'
+    consume(parser, TOKEN_SEMICOLON, "Expect ';' after for statement.");
 
     ASTNode *node = ast_new(parser->arena, AST_FOR_STMT, keyword.line, keyword.column);
     node->as.for_stmt.init = init;
@@ -402,7 +408,7 @@ static ASTNode *while_statement(Parser *parser) {
     consume(parser, TOKEN_RPAREN, "Expect ')' after while condition.");
 
     ASTNode *body = block(parser);
-    match(parser, TOKEN_SEMICOLON);
+    consume(parser, TOKEN_SEMICOLON, "Expect ';' after while statement.");
 
     ASTNode *node = ast_new(parser->arena, AST_WHILE_STMT, keyword.line, keyword.column);
     node->as.while_stmt.condition = condition;
@@ -431,7 +437,7 @@ static ASTNode *case_statement(Parser *parser) {
         ast_node_list_push(parser->arena, &node->as.case_stmt.body, statement(parser));
     }
     consume(parser, TOKEN_RBRACE, "Expect '}' after case body.");
-    match(parser, TOKEN_SEMICOLON); // optional trailing ';' e.g. '};'
+    consume(parser, TOKEN_SEMICOLON, "Expect ';' after case body.");
 
     return node;
 }
@@ -460,7 +466,7 @@ static ASTNode *switch_statement(Parser *parser) {
         }
     }
     consume(parser, TOKEN_RBRACE, "Expect '}' after switch block.");
-    match(parser, TOKEN_SEMICOLON); // optional trailing ';'
+    consume(parser, TOKEN_SEMICOLON, "Expect ';' after switch statement.");
 
     return node;
 }
@@ -480,7 +486,7 @@ static ASTNode *block(Parser *parser) {
 static ASTNode *expression_statement(Parser *parser) {
     Token start = parser->previous;
     ASTNode *expr = expression(parser);
-    match(parser, TOKEN_SEMICOLON); // optional ';'
+    consume(parser, TOKEN_SEMICOLON, "Expect ';' after expression.");
 
     ASTNode *node = ast_new(parser->arena, AST_EXPR_STMT, start.line, start.column);
     node->as.expr_stmt.expression = expr;
@@ -562,11 +568,12 @@ static ASTNode *statement(Parser *parser) {
             ast_node_list_push(parser->arena, &node->as.block.statements, declaration(parser));
         }
         consume(parser, TOKEN_RBRACE, "Expect '}' after block.");
+        consume(parser, TOKEN_SEMICOLON, "Expect ';' after block.");
         return node;
     }
     if (match(parser, TOKEN_BREAK)) {
         // Treat as an expression statement referencing the keyword name for codegen simplicity
-        match(parser, TOKEN_SEMICOLON);
+        consume(parser, TOKEN_SEMICOLON, "Expect ';' after 'break'.");
         ASTNode *node = ast_new(parser->arena, AST_EXPR_STMT, parser->previous.line, parser->previous.column);
         ASTNode *id = ast_new(parser->arena, AST_IDENTIFIER, parser->previous.line, parser->previous.column);
         id->as.identifier.name = sv_from_cstr("break");
@@ -574,7 +581,7 @@ static ASTNode *statement(Parser *parser) {
         return node;
     }
     if (match(parser, TOKEN_CONTINUE)) {
-        match(parser, TOKEN_SEMICOLON);
+        consume(parser, TOKEN_SEMICOLON, "Expect ';' after 'continue'.");
         ASTNode *node = ast_new(parser->arena, AST_EXPR_STMT, parser->previous.line, parser->previous.column);
         ASTNode *id = ast_new(parser->arena, AST_IDENTIFIER, parser->previous.line, parser->previous.column);
         id->as.identifier.name = sv_from_cstr("continue");

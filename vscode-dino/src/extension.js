@@ -25,22 +25,22 @@ const STATEMENT_SNIPPETS = [
   {
     label: 'for',
     detail: 'for loop',
-    insertText: 'for (var ${1:i} = 0; ${1:i} < ${2:10}; ${1:i}++) {\n\t$0\n}',
+    insertText: 'for (var ${1:i} = 0; ${1:i} < ${2:10}; ${1:i}++) {\n\t$0\n};',
   },
   {
     label: 'while',
     detail: 'while loop',
-    insertText: 'while (${1:condition}) {\n\t$0\n}',
+    insertText: 'while (${1:condition}) {\n\t$0\n};',
   },
   {
     label: 'if',
     detail: 'if statement',
-    insertText: 'if (${1:condition}) {\n\t$0\n}',
+    insertText: 'if (${1:condition}) {\n\t$0\n};',
   },
   {
     label: 'if else',
     detail: 'if / else statement',
-    insertText: 'if (${1:condition}) {\n\t$2\n} else {\n\t$0\n}',
+    insertText: 'if (${1:condition}) {\n\t$2\n} else {\n\t$0\n};',
   },
   {
     label: 'switch',
@@ -183,7 +183,15 @@ function rangeForError(document, line, col) {
   let start = Math.min(Math.max(col - 1, 0), lineText.length);
   let end = start;
   while (end < lineText.length && /[A-Za-z0-9_]/.test(lineText[end])) end++;
-  if (end === start) end = Math.min(lineText.length, start + 1);
+  if (end === start) {
+    // Not on a word: underline one character (or the last one on the line).
+    if (start > 0) {
+      start -= 1;
+      end = start + 1;
+    } else if (lineText.length > 0) {
+      end = 1;
+    }
+  }
   return new vscode.Range(line - 1, start, line - 1, end);
 }
 
@@ -192,9 +200,13 @@ function parseDiagnostics(document, stderr) {
   const re = /line (\d+), col (\d+)[^\n]*:\s*(.*)$/gm;
   let m;
   while ((m = re.exec(stderr)) !== null) {
-    const line = parseInt(m[1], 10);
+    let line = parseInt(m[1], 10);
     const col = parseInt(m[2], 10);
-    if (line < 1 || line > document.lineCount) continue;
+    if (line < 1) continue;
+    if (line > document.lineCount) line = document.lineCount;
+    // Errors "at end" land on the empty line after a trailing newline.
+    // Move back to the last line with content so the squiggle is visible.
+    while (line > 1 && document.lineAt(line - 1).text.length === 0) line--;
     const diag = new vscode.Diagnostic(
       rangeForError(document, line, col),
       m[3].trim(),
