@@ -10,6 +10,7 @@ typedef enum {
     AST_PROGRAM,
     AST_VAR_DECL,
     AST_FUNC_DECL,
+    AST_CLASS_DECL,
     AST_IF_STMT,
     AST_FOR_STMT,
     AST_WHILE_STMT,
@@ -53,6 +54,14 @@ typedef struct {
     ASTNodeList params; // AST_VAR_DECL nodes (type + name, no initializer)
     ASTNode *body;      // AST_BLOCK
 } FuncDecl;
+
+// A class is a named namespace of functions (and optional fields). Members are
+// AST_FUNC_DECL (methods) and AST_VAR_DECL (fields) nodes.
+typedef struct {
+    StringView name;
+    ASTNodeList members;
+    bool is_const;
+} ClassDecl;
 
 typedef struct {
     ASTNode *condition;
@@ -120,6 +129,7 @@ struct ASTNode {
         struct { ASTNodeList statements; } program;
         VarDecl var_decl;
         FuncDecl func_decl;
+        ClassDecl class_decl;
         IfStmt if_stmt;
         ForStmt for_stmt;
         WhileStmt while_stmt;

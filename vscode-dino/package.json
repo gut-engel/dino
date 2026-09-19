@@ -2,7 +2,7 @@
   "name": "dino-language",
   "displayName": "Dino Language Support",
   "description": "Syntax highlighting, completions, validation diagnostics and language configuration for the Dino (.dn) programming language that transpiles to C.",
-  "version": "0.1.9",
+  "version": "0.1.11",
   "publisher": "dino",
   "license": "MIT",
   "icon": "icons/icon.png",
@@ -32,6 +32,10 @@
         "extensions": [
           ".dn"
         ],
+        "icon": {
+          "light": "./icons/thumbnail.svg",
+          "dark": "./icons/thumbnail.svg"
+        },
         "configuration": "./language-configuration.json"
       }
     ],
@@ -40,6 +44,13 @@
         "language": "dino",
         "scopeName": "source.dino",
         "path": "./syntaxes/dino.tmLanguage.json"
+      }
+    ],
+    "iconThemes": [
+      {
+        "id": "dino-icons",
+        "label": "Dino Icons",
+        "path": "./fileicons/dino-icon-theme.json"
       }
     ],
     "configurationDefaults": {

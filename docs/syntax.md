@@ -40,8 +40,9 @@ Identifiers start with a letter or `_` and continue with letters, digits or
 ```
 const  var    if     else   for    while
 switch case   default break  continue return
-try    catch  throw  func   console  null
-bool   int    float  void   true   false
+try    catch  throw  func   class  console
+null   bool   int    float  void   true
+false
 ```
 
 `string`, `array` and `dict` are **not** reserved: they are the conventional
@@ -178,6 +179,45 @@ add(3, 4);
   (`return` is not parsed by this language yet).
 - Declaration order does not matter — functions are hoisted above `main()` in
   the generated C, so a function can call another defined later.
+
+### Classes
+
+A `class` is a named namespace of functions (*methods*) plus optional *fields*.
+It is declared with `class`, optionally preceded by `const` / `var`:
+
+```dn
+const class counters {
+    const label = "counter";      // a field
+
+    func count(max) {             // a method
+        for (var i = 0; i < max; i++) {
+            console.log(i);
+        };
+    };
+
+    func countBackwards(start) {
+        for (var i = start; i > 0; i--) {
+            console.log(i);
+        };
+    };
+};
+
+counters.count(3);                 // ClassName.method(args)
+counters.countBackwards(2);
+console.log(counters.label);       // ClassName.field
+```
+
+- Class declarations are **top-level only** (like `func`).
+- Call methods as `ClassName.method(args)`; read fields as
+  `ClassName.field`.
+- A bare class name (without `.member`) is a compile-time error, as is an
+  unknown member or reading a method as a value.
+- Methods and fields are global: any method can call any other method or read
+  any field, from any class, regardless of declaration order. Field
+  initializers run once at the start of the program.
+- Classes are *static namespaces* — there is no `new`, no instances and no
+  `this` yet. Internally each method becomes a static C function named
+  `Class_method` and each field a global value named `Class_field`.
 
 ## 4. Expressions
 
@@ -585,6 +625,8 @@ value (including empty arrays/dicts) is true.
     (`Unknown identifier 'stefan' (declare it with var/const first)`);
   - an invalid assignment target (not a variable or an index);
   - `++`/`--` applied to something that is not a variable;
+  - class misuse: a bare class name (without `.member`), an unknown class
+    member, reading a method as a value, or calling a field as a method;
   - calling the result of a call (a stray `()`, e.g. `console.error()("x")`).
 - **Scope rules** mirror the generated C: a variable is visible from its
   declaration to the end of the enclosing `{ ... }` block, and `for`-init
@@ -619,4 +661,8 @@ The runtime is generated from
 
 `func` declarations are emitted ahead of `main()` (hoisted), so calls from
 `main` (or other functions) resolve even when the definition comes later in
-the file. Programs are compiled with `gcc` (no extra flags).
+the file. A `class` lowers to a `static void Class_method(...)` per method and
+a global `DinoValue Class_field` per field; `Class.member` becomes the mangled
+symbol. Prototypes for every function and method are emitted before the
+definitions, so declaration order never matters. Programs are compiled with
+`gcc` (no extra flags).

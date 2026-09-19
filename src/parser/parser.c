@@ -712,6 +712,41 @@ static ASTNode *func_declaration(Parser *parser) {
     return node;
 }
 
+// class Name { func method(...) { ... }; [const|var] field = ...; };
+// The leading `class` keyword (and an optional const/var modifier) has already
+// been consumed. A class is a namespace of functions plus optional fields.
+static ASTNode *class_declaration(Parser *parser, bool is_const) {
+    Token keyword = parser->previous; // 'class'
+
+    if (!check(parser, TOKEN_IDENTIFIER)) {
+        error_current(parser, "Expect class name after 'class'.");
+        synchronize(parser);
+        return NULL;
+    }
+    Token name = parser->current;
+    advance(parser);
+
+    ASTNode *node = ast_new(parser->arena, AST_CLASS_DECL, keyword.line, keyword.column);
+    node->as.class_decl.name = name.lexeme;
+    node->as.class_decl.is_const = is_const;
+    ast_node_list_init(parser->arena, &node->as.class_decl.members);
+
+    consume(parser, TOKEN_LBRACE, "Expect '{' to start class body.");
+    while (!check(parser, TOKEN_RBRACE) && !check(parser, TOKEN_EOF) && !parser->panic_mode) {
+        if (match(parser, TOKEN_FUNC)) {
+            ast_node_list_push(parser->arena, &node->as.class_decl.members, func_declaration(parser));
+        } else if (match(parser, TOKEN_CONST) || match(parser, TOKEN_VAR)) {
+            ast_node_list_push(parser->arena, &node->as.class_decl.members, var_declaration(parser));
+        } else {
+            error_current(parser, "Expect 'func' method or field declaration in class body.");
+            synchronize(parser);
+        }
+    }
+    consume(parser, TOKEN_RBRACE, "Expect '}' after class body.");
+    consume(parser, TOKEN_SEMICOLON, "Expect ';' after class declaration.");
+    return node;
+}
+
 // try { ... } catch (name) { ... };
 static ASTNode *try_statement(Parser *parser) {
     Token keyword = parser->previous; // 'try'
@@ -790,6 +825,20 @@ static ASTNode *statement(Parser *parser) {
 }
 
 static ASTNode *declaration(Parser *parser) {
+    if (match(parser, TOKEN_CLASS)) {
+        ASTNode *node = class_declaration(parser, false);
+        if (parser->panic_mode) synchronize(parser);
+        return node;
+    }
+    if ((check(parser, TOKEN_CONST) || check(parser, TOKEN_VAR)) &&
+        peek(parser).type == TOKEN_CLASS) {
+        bool is_const = check(parser, TOKEN_CONST);
+        advance(parser); // 'const' or 'var'
+        advance(parser); // 'class'
+        ASTNode *node = class_declaration(parser, is_const);
+        if (parser->panic_mode) synchronize(parser);
+        return node;
+    }
     if (match(parser, TOKEN_FUNC)) {
         ASTNode *node = func_declaration(parser);
         if (parser->panic_mode) synchronize(parser);

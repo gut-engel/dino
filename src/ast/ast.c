@@ -36,6 +36,7 @@ static const char *ast_node_type_name(ASTNodeType type) {
         case AST_VAR_DECL: return "VarDecl";
 
         case AST_FUNC_DECL: return "FuncDecl";
+        case AST_CLASS_DECL: return "ClassDecl";
         case AST_IF_STMT: return "IfStmt";
         case AST_FOR_STMT: return "ForStmt";
         case AST_WHILE_STMT: return "WhileStmt";
@@ -104,6 +105,15 @@ void ast_print(ASTNode *node, int indent) {
             print_indent(indent + 1);
             printf("body:\n");
             ast_print(node->as.func_decl.body, indent + 2);
+            break;
+        case AST_CLASS_DECL:
+            print_indent(indent + 1);
+            printf("name: %.*s, is_const: %s\n", (int)node->as.class_decl.name.length, node->as.class_decl.name.data, node->as.class_decl.is_const ? "true" : "false");
+            for (size_t i = 0; i < node->as.class_decl.members.count; i++) {
+                print_indent(indent + 1);
+                printf("member %zu:\n", i);
+                ast_print(node->as.class_decl.members.nodes[i], indent + 2);
+            }
             break;
         case AST_IF_STMT:
             print_indent(indent + 1);

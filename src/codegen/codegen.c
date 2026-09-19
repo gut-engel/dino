@@ -76,6 +76,64 @@ static void scope_free(Codegen *cg) {
     cg->scope_marks_cap = 0;
 }
 
+// ── Class registry ───────────────────────────────────────────────────────────
+
+static CodegenClass *class_find(Codegen *cg, StringView name) {
+    for (size_t i = 0; i < cg->class_count; i++)
+        if (sv_eq(cg->classes[i].name, name)) return &cg->classes[i];
+    return NULL;
+}
+
+static void class_register(Codegen *cg, ASTNode *cls) {
+    if (class_find(cg, cls->as.class_decl.name)) return;
+    if (cg->class_count >= cg->class_cap) {
+        size_t cap = cg->class_cap ? cg->class_cap * 2 : 8;
+        cg->classes = realloc(cg->classes, sizeof(CodegenClass) * cap);
+        cg->class_cap = cap;
+    }
+    CodegenClass *c = &cg->classes[cg->class_count++];
+    memset(c, 0, sizeof(*c));
+    c->name = cls->as.class_decl.name;
+    for (size_t i = 0; i < cls->as.class_decl.members.count; i++) {
+        ASTNode *m = cls->as.class_decl.members.nodes[i];
+        if (c->member_count >= c->member_cap) {
+            size_t cap = c->member_cap ? c->member_cap * 2 : 8;
+            c->members = realloc(c->members, sizeof(StringView) * cap);
+            c->member_is_method = realloc(c->member_is_method, sizeof(bool) * cap);
+            c->member_cap = cap;
+        }
+        if (m->type == AST_FUNC_DECL) {
+            c->members[c->member_count] = m->as.func_decl.name;
+            c->member_is_method[c->member_count] = true;
+        } else {
+            c->members[c->member_count] = m->as.var_decl.name;
+            c->member_is_method[c->member_count] = false;
+        }
+        c->member_count++;
+    }
+}
+
+static bool class_member_lookup(CodegenClass *c, StringView name, bool *is_method) {
+    for (size_t i = 0; i < c->member_count; i++) {
+        if (sv_eq(c->members[i], name)) {
+            if (is_method) *is_method = c->member_is_method[i];
+            return true;
+        }
+    }
+    return false;
+}
+
+static void class_free(Codegen *cg) {
+    for (size_t i = 0; i < cg->class_count; i++) {
+        free(cg->classes[i].members);
+        free(cg->classes[i].member_is_method);
+    }
+    free(cg->classes);
+    cg->classes = NULL;
+    cg->class_count = 0;
+    cg->class_cap = 0;
+}
+
 // Built-in names that are always in scope.
 static bool is_builtin_name(StringView name) {
     return sv_eq(name, sv_from_cstr("console")) ||
@@ -224,10 +282,20 @@ static void codegen_expression(Codegen *cg, ASTNode *node) {
             break;
         }
 
-        case AST_IDENTIFIER:
-            validate_identifier(cg, node, node->as.identifier.name);
-            emit_sv(cg, node->as.identifier.name);
+        case AST_IDENTIFIER: {
+            StringView name = node->as.identifier.name;
+            if (class_find(cg, name)) {
+                char buf[192];
+                snprintf(buf, sizeof(buf),
+                         "Class '%.*s' can only be used as '%.*s.member'",
+                         (int)name.length, name.data, (int)name.length, name.data);
+                error_at_node(cg, node, buf);
+                break;
+            }
+            validate_identifier(cg, node, name);
+            emit_sv(cg, name);
             break;
+        }
 
         case AST_ARRAY_LITERAL: {
             size_t n = node->as.array_literal.elements.count;
@@ -424,6 +492,40 @@ static void codegen_expression(Codegen *cg, ASTNode *node) {
                 }
             }
 
+            // Class method call: ClassName.method(args).
+            if (callee->type == AST_MEMBER_EXPR &&
+                callee->as.member_expr.object->type == AST_IDENTIFIER) {
+                CodegenClass *cls = class_find(cg, callee->as.member_expr.object->as.identifier.name);
+                if (cls) {
+                    StringView prop = callee->as.member_expr.property;
+                    bool is_method = false;
+                    if (!class_member_lookup(cls, prop, &is_method)) {
+                        char buf[192];
+                        snprintf(buf, sizeof(buf), "Class '%.*s' has no member '%.*s'",
+                                 (int)cls->name.length, cls->name.data, (int)prop.length, prop.data);
+                        error_at_node(cg, node, buf);
+                        break;
+                    }
+                    if (!is_method) {
+                        char buf[192];
+                        snprintf(buf, sizeof(buf), "'%.*s.%.*s' is a field, not a method",
+                                 (int)cls->name.length, cls->name.data, (int)prop.length, prop.data);
+                        error_at_node(cg, node, buf);
+                        break;
+                    }
+                    emit_sv(cg, cls->name);
+                    emit(cg, "_");
+                    emit_sv(cg, prop);
+                    emit(cg, "(");
+                    for (size_t i = 0; i < nargs; i++) {
+                        if (i > 0) emit(cg, ", ");
+                        codegen_expression(cg, node->as.call_expr.arguments.nodes[i]);
+                    }
+                    emit(cg, ")");
+                    break;
+                }
+            }
+
             // console.* builtins.
             if (callee->type == AST_MEMBER_EXPR) {
                 ASTNode *obj = callee->as.member_expr.object;
@@ -509,7 +611,35 @@ static void codegen_expression(Codegen *cg, ASTNode *node) {
             break;
         }
 
-        case AST_MEMBER_EXPR:
+        case AST_MEMBER_EXPR: {
+            // ClassName.member — fields are read; methods must be called.
+            if (node->as.member_expr.object->type == AST_IDENTIFIER) {
+                CodegenClass *cls = class_find(cg, node->as.member_expr.object->as.identifier.name);
+                if (cls) {
+                    StringView prop = node->as.member_expr.property;
+                    bool is_method = false;
+                    if (!class_member_lookup(cls, prop, &is_method)) {
+                        char buf[192];
+                        snprintf(buf, sizeof(buf), "Class '%.*s' has no member '%.*s'",
+                                 (int)cls->name.length, cls->name.data, (int)prop.length, prop.data);
+                        error_at_node(cg, node, buf);
+                        break;
+                    }
+                    if (is_method) {
+                        char buf[256];
+                        snprintf(buf, sizeof(buf),
+                                 "Method '%.*s.%.*s' must be called, e.g. '%.*s.%.*s(...)'",
+                                 (int)cls->name.length, cls->name.data, (int)prop.length, prop.data,
+                                 (int)cls->name.length, cls->name.data, (int)prop.length, prop.data);
+                        error_at_node(cg, node, buf);
+                        break;
+                    }
+                    emit_sv(cg, cls->name);
+                    emit(cg, "_");
+                    emit_sv(cg, prop);
+                    break;
+                }
+            }
             if (node->as.member_expr.object->type == AST_IDENTIFIER &&
                 sv_eq(node->as.member_expr.object->as.identifier.name, sv_from_cstr("console"))) {
                 char buf[160];
@@ -556,6 +686,7 @@ static void codegen_expression(Codegen *cg, ASTNode *node) {
             emit_sv(cg, node->as.member_expr.property);
             emit(cg, "\"))");
             break;
+        }
 
         default:
             error_at_node(cg, node, "Cannot generate expression for this node");
@@ -566,16 +697,22 @@ static void codegen_expression(Codegen *cg, ASTNode *node) {
 // ── Statement codegen ────────────────────────────────────────────────────────
 
 // Emit a top-level function definition. Functions take and (currently) return
-// nothing meaningful — parameters are dynamic values.
-static void codegen_func_decl(Codegen *cg, ASTNode *node) {
+// nothing meaningful — parameters are dynamic values. `prefix` is the class
+// name for methods (emitted as `Class_method`), or empty for plain functions.
+static void codegen_func_decl_prefixed(Codegen *cg, ASTNode *node, StringView prefix) {
     emit(cg, "static __attribute__((unused)) void ");
+    if (prefix.length > 0) { emit_sv(cg, prefix); emit(cg, "_"); }
     emit_sv(cg, node->as.func_decl.name);
     emit(cg, "(");
-    for (size_t i = 0; i < node->as.func_decl.params.count; i++) {
-        if (i > 0) emit(cg, ", ");
-        ASTNode *param = node->as.func_decl.params.nodes[i];
-        emit(cg, "DinoValue ");
-        emit_sv(cg, param->as.var_decl.name);
+    if (node->as.func_decl.params.count == 0) {
+        emit(cg, "void");
+    } else {
+        for (size_t i = 0; i < node->as.func_decl.params.count; i++) {
+            if (i > 0) emit(cg, ", ");
+            ASTNode *param = node->as.func_decl.params.nodes[i];
+            emit(cg, "DinoValue ");
+            emit_sv(cg, param->as.var_decl.name);
+        }
     }
     emit(cg, ") {\n");
     cg->indent_level++;
@@ -597,6 +734,52 @@ static void codegen_func_decl(Codegen *cg, ASTNode *node) {
     cg->indent_level--;
     emit_indent(cg);
     emit(cg, "}\n");
+}
+
+static void codegen_func_decl(Codegen *cg, ASTNode *node) {
+    codegen_func_decl_prefixed(cg, node, sv_from_cstr(""));
+}
+
+// Forward declaration, so any function or method may call any other.
+static void codegen_func_prototype(Codegen *cg, ASTNode *node, StringView prefix) {
+    emit(cg, "static void ");
+    if (prefix.length > 0) { emit_sv(cg, prefix); emit(cg, "_"); }
+    emit_sv(cg, node->as.func_decl.name);
+    emit(cg, "(");
+    if (node->as.func_decl.params.count == 0) {
+        emit(cg, "void");
+    } else {
+        for (size_t i = 0; i < node->as.func_decl.params.count; i++) {
+            if (i > 0) emit(cg, ", ");
+            emit(cg, "DinoValue");
+        }
+    }
+    emit(cg, ");\n");
+}
+
+// Emit a class: a global DinoValue per field, then a static function per
+// method, all named `Class_member`.
+static void codegen_class_decl(Codegen *cg, ASTNode *cls) {
+    StringView cname = cls->as.class_decl.name;
+
+    // Field storage (zero-initialized == null). Their initializers run at the
+    // top of main(), because Dino value constructors are not constant
+    // expressions and so cannot initialize a static C global.
+    for (size_t i = 0; i < cls->as.class_decl.members.count; i++) {
+        ASTNode *m = cls->as.class_decl.members.nodes[i];
+        if (m->type != AST_VAR_DECL) continue;
+        emit(cg, "static __attribute__((unused)) DinoValue ");
+        emit_sv(cg, cname);
+        emit(cg, "_");
+        emit_sv(cg, m->as.var_decl.name);
+        emit(cg, ";\n");
+    }
+
+    // Then the methods.
+    for (size_t i = 0; i < cls->as.class_decl.members.count; i++) {
+        ASTNode *m = cls->as.class_decl.members.nodes[i];
+        if (m->type == AST_FUNC_DECL) codegen_func_decl_prefixed(cg, m, cname);
+    }
 }
 
 // Emit a control-flow body: blocks start immediately with '{' on the current
@@ -812,6 +995,10 @@ static void codegen_statement(Codegen *cg, ASTNode *node) {
             break;
         }
 
+        case AST_CLASS_DECL:
+            error_at_node(cg, node, "Classes must be declared at the top level, not inside a block");
+            break;
+
         case AST_FUNC_DECL:
             error_at_node(cg, node, "Functions must be declared at the top level, not inside a block");
             break;
@@ -837,11 +1024,37 @@ char *codegen_generate(Arena *arena, ASTNode *program, char **error_out) {
     emit(&cg, DINO_RUNTIME_C);
     emit(&cg, "\n");
 
-    // Hoist user-defined functions above main() so main can call them.
+    // Register classes before generating anything, so `ClassName.member`
+    // references resolve regardless of declaration order.
+    for (size_t i = 0; i < program->as.program.statements.count; i++) {
+        ASTNode *stmt = program->as.program.statements.nodes[i];
+        if (stmt->type == AST_CLASS_DECL) class_register(&cg, stmt);
+    }
+
+    // Forward-declare every function and class method so they can call each
+    // other regardless of definition order.
+    for (size_t i = 0; i < program->as.program.statements.count; i++) {
+        ASTNode *stmt = program->as.program.statements.nodes[i];
+        if (stmt->type == AST_FUNC_DECL) {
+            codegen_func_prototype(&cg, stmt, sv_from_cstr(""));
+        } else if (stmt->type == AST_CLASS_DECL) {
+            for (size_t j = 0; j < stmt->as.class_decl.members.count; j++) {
+                ASTNode *m = stmt->as.class_decl.members.nodes[j];
+                if (m->type == AST_FUNC_DECL)
+                    codegen_func_prototype(&cg, m, stmt->as.class_decl.name);
+            }
+        }
+    }
+    emit(&cg, "\n");
+
+    // Hoist user-defined functions and classes above main() so main can use
+    // them (fields become globals; methods become static functions).
     for (size_t i = 0; i < program->as.program.statements.count; i++) {
         ASTNode *stmt = program->as.program.statements.nodes[i];
         if (stmt->type == AST_FUNC_DECL) {
             codegen_func_decl(&cg, stmt);
+        } else if (stmt->type == AST_CLASS_DECL) {
+            codegen_class_decl(&cg, stmt);
         }
     }
     emit(&cg, "\n");
@@ -852,9 +1065,26 @@ char *codegen_generate(Arena *arena, ASTNode *program, char **error_out) {
     emit(&cg, "int main(void) {\n");
     cg.indent_level = 1;
     scope_push(&cg);
+    // Run class field initializers now that we are inside main().
     for (size_t i = 0; i < program->as.program.statements.count; i++) {
         ASTNode *stmt = program->as.program.statements.nodes[i];
-        if (stmt->type == AST_FUNC_DECL) continue; // already hoisted
+        if (stmt->type != AST_CLASS_DECL) continue;
+        for (size_t j = 0; j < stmt->as.class_decl.members.count; j++) {
+            ASTNode *m = stmt->as.class_decl.members.nodes[j];
+            if (m->type != AST_VAR_DECL || !m->as.var_decl.initializer) continue;
+            emit_indent(&cg);
+            emit_sv(&cg, stmt->as.class_decl.name);
+            emit(&cg, "_");
+            emit_sv(&cg, m->as.var_decl.name);
+            emit(&cg, " = ");
+            codegen_expression(&cg, m->as.var_decl.initializer);
+            emit(&cg, ";");
+            emit_line(&cg);
+        }
+    }
+    for (size_t i = 0; i < program->as.program.statements.count; i++) {
+        ASTNode *stmt = program->as.program.statements.nodes[i];
+        if (stmt->type == AST_FUNC_DECL || stmt->type == AST_CLASS_DECL) continue; // already hoisted
         codegen_statement(&cg, stmt);
     }
     scope_pop(&cg);
@@ -865,12 +1095,14 @@ char *codegen_generate(Arena *arena, ASTNode *program, char **error_out) {
         *error_out = cg.error_msg.data;
         sb_free(&cg.out);
         scope_free(&cg);
+        class_free(&cg);
         return NULL;
     }
 
     *error_out = NULL;
     sb_free(&cg.error_msg);
     scope_free(&cg);
+    class_free(&cg);
     // Transfer ownership of the buffer to the caller
     char *result = cg.out.data;
     cg.out.data = NULL;

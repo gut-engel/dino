@@ -4,6 +4,16 @@
 #include "../ast/ast.h"
 #include "../lexer/token.h"
 
+// A class known to codegen: its name plus the names of its methods (functions)
+// and fields (variables), used to resolve `ClassName.member`.
+typedef struct {
+    StringView name;
+    StringView *members;
+    bool *member_is_method;
+    size_t member_count;
+    size_t member_cap;
+} CodegenClass;
+
 typedef struct {
     Arena *arena;
     StringBuilder out;
@@ -18,6 +28,10 @@ typedef struct {
     size_t *scope_marks;
     size_t scope_marks_count;
     size_t scope_marks_cap;
+    // Declared classes (top-level), for `ClassName.method(...)` resolution.
+    CodegenClass *classes;
+    size_t class_count;
+    size_t class_cap;
 } Codegen;
 
 // Generates C source from the AST. Returns a heap-allocated string that the

@@ -29,6 +29,14 @@ EXTENSION_FILES = [
     os.path.join("src", "extension.js"),
     os.path.join("syntaxes", "dino.tmLanguage.json"),
     os.path.join("icons", "icon.png"),
+    os.path.join("icons", "thumbnail.svg"),
+    os.path.join("fileicons", "dino-icon-theme.json"),
+    os.path.join("fileicons", "images", "file-dark.svg"),
+    os.path.join("fileicons", "images", "file-light.svg"),
+    os.path.join("fileicons", "images", "folder-dark.svg"),
+    os.path.join("fileicons", "images", "folder-light.svg"),
+    os.path.join("fileicons", "images", "folder-open-dark.svg"),
+    os.path.join("fileicons", "images", "folder-open-light.svg"),
 ]
 
 # Fixed timestamp so builds are reproducible.

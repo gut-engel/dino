@@ -6,7 +6,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const KEYWORDS = ['const', 'var', 'if', 'else', 'for', 'while', 'switch', 'case', 'default', 'break', 'continue', 'return', 'try', 'catch', 'throw'];
+const KEYWORDS = ['const', 'var', 'if', 'else', 'for', 'while', 'switch', 'case', 'default', 'break', 'continue', 'return', 'try', 'catch', 'throw', 'class'];
 const TYPES = ['bool', 'int', 'float', 'void', 'string', 'array', 'dict'];
 const LITERALS = ['true', 'false', 'null'];
 const CONSOLE_METHODS = ['log', 'warn', 'error', 'do'];
@@ -71,6 +71,11 @@ const STATEMENT_SNIPPETS = [
     label: 'func',
     detail: 'function declaration (top-level only, returns nothing)',
     insertText: 'func ${1:name}(${2:type} ${3:param}) {\n\t$0\n}',
+  },
+  {
+    label: 'class',
+    detail: 'class declaration (a namespace of methods and fields)',
+    insertText: 'class ${1:Name} {\n\tfunc ${2:method}(${3:type} ${4:param}) {\n\t\t$0\n\t};\n};',
   },
   {
     label: 'try',

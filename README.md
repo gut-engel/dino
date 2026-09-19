@@ -7,7 +7,7 @@ resulting executable is placed next to your input file.
 ![docs](docs/) — full documentation lives in [`docs/`](docs/README.md):
 
 - **[Language reference](docs/syntax.md)** — dynamic values (incl. arrays and
-  dictionaries), declarations, `func` functions, statements
+  dictionaries), declarations, `func` functions, `class` namespaces, statements
   (`if`/`for`/`while`/`switch`/`try`), expressions, interpolated strings,
   built-ins (`console.*`, `delay`, `input`, `len`, `push`, `pop`, `has`,
   `keys`, `values`), compile-time errors.
@@ -96,7 +96,9 @@ try {
 Features in brief: dynamic values (`null`, `bool`, `int`, `float`, `string`,
 `array`, `dict`) with optional type annotations · assignment (`=`, `x[i] = v`,
 `d[k] = v`, `++`/`--`) · `if`/`else`, `while`, `for`, `switch`/`case`/
-`default` · `break` / `continue` · `try` / `catch` / `throw` (nested;
+`default` · `break` / `continue` · `class` (static namespaces of methods and
+fields: `ClassName.method(...)`, `ClassName.field`) · `try` / `catch` /
+`throw` (nested;
 uncaught errors abort with a message) · `console.log` / `warn` / `error`
 (stdout / stderr, colourised on a terminal) · `console.do` (shells out with
 `system()`) · `delay(seconds)` · `input(prompt)` · `len`, `push`, `pop`,

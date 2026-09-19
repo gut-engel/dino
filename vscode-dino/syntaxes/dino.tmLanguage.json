@@ -88,7 +88,7 @@
         },
         {
           "name": "keyword.declaration.dino",
-          "match": "\\bfunc\\b"
+          "match": "\\b(func|class)\\b"
         },
         {
           "name": "storage.modifier.dino",

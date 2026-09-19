@@ -29,6 +29,7 @@ const char *token_type_name(TokenType type) {
         case TOKEN_NULL: return "NULL";
         case TOKEN_CONSOLE: return "CONSOLE";
         case TOKEN_FUNC: return "FUNC";
+        case TOKEN_CLASS: return "CLASS";
         case TOKEN_TRY: return "TRY";
         case TOKEN_CATCH: return "CATCH";
         case TOKEN_THROW: return "THROW";

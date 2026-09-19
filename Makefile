@@ -26,6 +26,14 @@ VSIX_SRC = \
 	$(VSCE_DIR)/src/extension.js \
 	$(VSCE_DIR)/syntaxes/dino.tmLanguage.json \
 	$(VSCE_DIR)/icons/icon.png \
+	$(VSCE_DIR)/icons/thumbnail.svg \
+	$(VSCE_DIR)/fileicons/dino-icon-theme.json \
+	$(VSCE_DIR)/fileicons/images/file-dark.svg \
+	$(VSCE_DIR)/fileicons/images/file-light.svg \
+	$(VSCE_DIR)/fileicons/images/folder-dark.svg \
+	$(VSCE_DIR)/fileicons/images/folder-light.svg \
+	$(VSCE_DIR)/fileicons/images/folder-open-dark.svg \
+	$(VSCE_DIR)/fileicons/images/folder-open-light.svg \
 	$(VSCE_DIR)/vsix/extension.vsixmanifest \
 	$(VSCE_DIR)/vsix/content-types.xml \
 	$(VSCE_DIR)/vsix/build_vsix.py

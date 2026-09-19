@@ -1,5 +1,31 @@
 # Change Log
 
+## [0.1.11] - 2026-09-19
+
+- **`class` declarations**: a `class` is a static namespace of methods and
+  optional fields, declared top-level as `[const|var] class Name { ... };`.
+  Call a method with `ClassName.method(args)` and read a field with
+  `ClassName.field`. Any method can call any other method or read any field,
+  regardless of declaration order; a bare class name, an unknown member, or
+  using a method as a value is a compile-time error.
+- Syntax highlighting, completions and snippets updated for `class`; the
+  language reference documents the feature.
+
+## [0.1.10] - 2026-09-19
+
+- **`*.dn` file icon**: every `*.dn` file now shows the dino
+  `icons/thumbnail.svg` as its file icon in the Explorer, editor tabs and
+  breadcrumbs.
+  - Contributed as the language's default icon, so it appears whenever the
+    active file icon theme supports language icons (e.g. the built-in Seti
+    theme).
+  - A bundled **"Dino Icons" file icon theme** (`iconThemes` →
+    `fileicons/dino-icon-theme.json`) maps `.dn` to the dino icon and provides
+    dino-styled generic file/folder icons for everything else. Select it via
+    **File ▸ Preferences ▸ File Icon Theme ▸ Dino Icons** (or set
+    `"workbench.iconTheme": "dino-icons"`) to get the dino icon under any
+    color theme, including Minimal.
+
 ## [0.1.9] - 2026-09-19
 
 - **Dynamic values**: every variable and parameter is now a tagged value that

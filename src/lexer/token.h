@@ -35,6 +35,7 @@ typedef enum {
     TOKEN_NULL,
     TOKEN_CONSOLE,
     TOKEN_FUNC,
+    TOKEN_CLASS,
     TOKEN_TRY,
     TOKEN_CATCH,
     TOKEN_THROW,

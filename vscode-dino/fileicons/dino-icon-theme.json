@@ -1,0 +1,53 @@
+{
+  "iconDefinitions": {
+    "_dino": {
+      "iconPath": "../icons/thumbnail.svg"
+    },
+    "_file": {
+      "iconPath": "./images/file-dark.svg"
+    },
+    "_file_light": {
+      "iconPath": "./images/file-light.svg"
+    },
+    "_folder": {
+      "iconPath": "./images/folder-dark.svg"
+    },
+    "_folder_light": {
+      "iconPath": "./images/folder-light.svg"
+    },
+    "_folder_open": {
+      "iconPath": "./images/folder-open-dark.svg"
+    },
+    "_folder_open_light": {
+      "iconPath": "./images/folder-open-light.svg"
+    }
+  },
+  "folderExpanded": "_folder_open",
+  "folder": "_folder",
+  "file": "_file",
+  "fileExtensions": {
+    "dn": "_dino"
+  },
+  "languageIds": {
+    "dino": "_dino"
+  },
+  "light": {
+    "folderExpanded": "_folder_open_light",
+    "folder": "_folder_light",
+    "file": "_file_light",
+    "fileExtensions": {
+      "dn": "_dino"
+    },
+    "languageIds": {
+      "dino": "_dino"
+    }
+  },
+  "highContrast": {
+    "fileExtensions": {
+      "dn": "_dino"
+    },
+    "languageIds": {
+      "dino": "_dino"
+    }
+  }
+}
