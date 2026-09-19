@@ -245,6 +245,20 @@ static void codegen_expression(Codegen *cg, ASTNode *node) {
             ASTNode *callee = node->as.call_expr.callee;
             size_t nargs = node->as.call_expr.arguments.count;
 
+            // delay(seconds) builtin → _dino_delay() runtime helper.
+            // Accepts whole or fractional seconds (int or float).
+            if (callee->type == AST_IDENTIFIER &&
+                sv_eq(callee->as.identifier.name, sv_from_cstr("delay"))) {
+                if (nargs != 1) {
+                    error_at_node(cg, node, "delay() expects exactly 1 argument (seconds)");
+                    break;
+                }
+                emit(cg, "_dino_delay(");
+                codegen_expression(cg, node->as.call_expr.arguments.nodes[0]);
+                emit(cg, ")");
+                break;
+            }
+
             // console.* builtins
             if (callee->type == AST_MEMBER_EXPR) {
                 ASTNode *obj = callee->as.member_expr.object;
@@ -513,11 +527,13 @@ char *codegen_generate(Arena *arena, ASTNode *program, char **error_out) {
     };
 
     // Preamble
+    emit(&cg, "#define _POSIX_C_SOURCE 200809L\n");
     emit(&cg, "#include <stdio.h>\n");
     emit(&cg, "#include <stdlib.h>\n");
     emit(&cg, "#include <string.h>\n");
     emit(&cg, "#include <stdbool.h>\n");
     emit(&cg, "#include <stdarg.h>\n");
+    emit(&cg, "#include <time.h>\n");
     emit(&cg, "\n");
     // Runtime helper for interpolated strings used in expression context
     emit(&cg, "static char _dino_interp_bufs[8][1024];\n");
@@ -530,6 +546,15 @@ char *codegen_generate(Arena *arena, ASTNode *program, char **error_out) {
     emit(&cg, "    vsnprintf(buf, 1024, fmt, ap);\n");
     emit(&cg, "    va_end(ap);\n");
     emit(&cg, "    return buf;\n");
+    emit(&cg, "}\n");
+    emit(&cg, "\n");
+    // Runtime helper for delay(seconds): sleeps for a whole or fractional number
+    // of seconds using a monotonic-ish high-resolution sleep (nanosleep).
+    emit(&cg, "__attribute__((unused)) static void _dino_delay(double seconds) {\n");
+    emit(&cg, "    struct timespec ts;\n");
+    emit(&cg, "    ts.tv_sec = (time_t)seconds;\n");
+    emit(&cg, "    ts.tv_nsec = (long)((seconds - (double)ts.tv_sec) * 1000000000.0);\n");
+    emit(&cg, "    nanosleep(&ts, NULL);\n");
     emit(&cg, "}\n");
     emit(&cg, "\n");
 

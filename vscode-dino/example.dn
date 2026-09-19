@@ -1,0 +1,20 @@
+const bool boolean = true;
+
+if (boolean) {
+    console.log();
+    console.warn();
+    console.error();
+};
+
+for (var i = 0; i<10; i++) {
+    switch (i) {
+        case (i<3) {
+            
+        };
+    };
+};
+
+console.do($"command {boolean}");
+
+delay(1);   // freeze for one second
+delay(0.5); // ...or a fraction

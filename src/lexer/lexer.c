@@ -27,10 +27,25 @@ static char lexer_advance(Lexer *lexer) {
 static void lexer_skip_whitespace(Lexer *lexer) {
     while (true) {
         char c = lexer_peek(lexer);
-        if (c == ' ' || c == '\t' || c == '\r') {
+        if (c == ' ' || c == '\t' || c == '\r' || c == '\n') {
             lexer_advance(lexer);
-        } else if (c == '\n') {
-            lexer_advance(lexer);
+        } else if (c == '/' && lexer_peek_next(lexer) == '/') {
+            // Line comment: skip to end of line
+            while (lexer_peek(lexer) != '\n' && lexer_peek(lexer) != '\0') {
+                lexer_advance(lexer);
+            }
+        } else if (c == '/' && lexer_peek_next(lexer) == '*') {
+            // Block comment: skip to closing '*/'
+            lexer_advance(lexer); // consume '/'
+            lexer_advance(lexer); // consume '*'
+            while (lexer_peek(lexer) != '\0') {
+                if (lexer_peek(lexer) == '*' && lexer_peek_next(lexer) == '/') {
+                    lexer_advance(lexer);
+                    lexer_advance(lexer);
+                    break;
+                }
+                lexer_advance(lexer);
+            }
         } else {
             break;
         }

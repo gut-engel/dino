@@ -1,0 +1,132 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Dino",
+  "scopeName": "source.dino",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#console-methods" },
+    { "include": "#keywords" },
+    { "include": "#delay" },
+    { "include": "#numbers" },
+    { "include": "#operators" },
+    { "include": "#identifiers" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.dino",
+          "match": "//.*$"
+        },
+        {
+          "name": "comment.block.dino",
+          "begin": "/\\*",
+          "end": "\\*/"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.interpolated.dino",
+          "begin": "\\$\\\"",
+          "end": "\\\"",
+          "patterns": [
+            {
+              "name": "meta.embedded.expression.dino",
+              "begin": "\\{",
+              "end": "\\}",
+              "patterns": [
+                { "include": "#numbers" },
+                { "include": "#strings" },
+                { "include": "#keywords" },
+                { "include": "#operators" },
+                { "include": "#identifiers" }
+              ]
+            },
+            {
+              "name": "constant.character.escape.dino",
+              "match": "\\\\."
+            }
+          ]
+        },
+        {
+          "name": "string.quoted.double.dino",
+          "begin": "\\\"",
+          "end": "\\\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.dino",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    },
+    "console-methods": {
+      "patterns": [
+        {
+          "name": "support.function.dino",
+          "match": "\\bconsole\\.(log|warn|error|do)\\b"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.dino",
+          "match": "\\b(if|else|for|while|switch|case|default|break|continue|return)\\b"
+        },
+        {
+          "name": "storage.modifier.dino",
+          "match": "\\b(const|var)\\b"
+        },
+        {
+          "name": "storage.type.dino",
+          "match": "\\b(bool|int|float|void)\\b"
+        },
+        {
+          "name": "constant.language.dino",
+          "match": "\\b(true|false)\\b"
+        },
+        {
+          "name": "support.class.builtin.dino",
+          "match": "\\bconsole\\b"
+        }
+      ]
+    },
+    "delay": {
+      "patterns": [
+        {
+          "name": "support.function.builtin.dino",
+          "match": "\\bdelay\\b"
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.dino",
+          "match": "\\b(0[xX][0-9a-fA-F]+|[0-9]+(?:\\.[0-9]+)?)\\b"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.dino",
+          "match": "(?:==|!=|<=|>=|&&|\\|\\||\\+\\+|--|->|[+\\-*/%<>=!])"
+        }
+      ]
+    },
+    "identifiers": {
+      "patterns": [
+        {
+          "name": "variable.other.dino",
+          "match": "[A-Za-z_][A-Za-z0-9_]*"
+        }
+      ]
+    }
+  }
+}

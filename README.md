@@ -6,7 +6,9 @@ A tiny language (`*.dn`) that transpiles to C. The generated C is written to a
 ## Build
 
 ```sh
-make               # builds the `dino` transpiler
+make               # builds the `dino` transpiler and the VS Code extension package
+make dino          # only the transpiler
+make vsix          # only the extension package -> dino-language-<ver>.vsix
 ```
 
 ## Usage
@@ -57,8 +59,11 @@ var flag = false;                   // inferred _Bool
 - `if`/`else`, `while`, `for`, `switch`/`case`/`default`
 - `console.log`, `console.warn`, `console.error` (stdout/stderr)
 - `console.do` shells out with `system()`
+- `delay(seconds)` sleeps for whole or fractional seconds (`delay(1)`,
+  `delay(0.25)`)
 - Interpolated strings `$"..."` with `{expr}` placeholders
 - Binary/unary/postfix operators (`++`, `--`), grouping, etc.
+- Line (`//`) and block (`/* */`) comments
 
 ## Project layout
 
