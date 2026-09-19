@@ -1,6 +1,19 @@
 const bool boolean = true;
 const string array = ["John", "Alex", "Stefan"];
 const dict dictionary = {"Name": "John", "Age": "15", "Favorite food": "noodles"};
+const class counters {
+    func count(max) {
+        for (var i = 0; i<max; i++) {
+            console.log(i);
+        };
+    };
+
+    func countBackwards(start) {
+        for (var i = start; i>0; i--) {
+            console.log(i);
+        };
+    };
+};
 
 func greet(string name) {
     console.log($"Greetings to {name}!\n");
@@ -50,3 +63,6 @@ console.log(dictionary.valueOfKey["Age"]); //Outputs "15"
 console.log(array[2]);//Outputs "Stefan"
 console.log(array["Stefan"]);//Outputs 2
 console.log(array.len);//Outputs 3
+
+counters.count(15) //Outputs 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15
+counters.countBackwards(4) //Outputs 4 3 2 1
