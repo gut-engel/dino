@@ -1,5 +1,37 @@
 # Change Log
 
+## [0.1.9] - 2026-09-19
+
+- **Dynamic values**: every variable and parameter is now a tagged value that
+  can hold `null`, a `bool`, an `int`, a `float`, a `string`, an `array` or a
+  `dict`. Type annotations are optional and advisory — `var`, `const`,
+  `func` parameters, and `type[]` are all still accepted, and `string`,
+  `array` and `dict` also work as ordinary variable names (e.g.
+  `const string array = [...]`).
+- **Arrays and dictionaries**: literals (`[1, 2, 3]`,
+  `{"name": "Ada", age: 36}`), indexing (`xs[0]`, `person["name"]`), element
+  assignment (`xs[0] = 9`, `person["age"] = 37`), negative indexes, and the
+  helpers `len`, `push`, `pop`, `has`, `keys`, `values`. Members `.length` /
+  `.len`, `.key(s)`, `.value(s)` and `.valueOfKey` are also recognised.
+  Reading an array or string index that is out of range **throws**
+  (`array index out of range` / `string index out of range`), so it can be
+  caught; a missing dictionary key or a failed value search yields `null`.
+- **Assignment**: `=` is now a statement (right-associative, so `a = b = 0;`
+  works), alongside `++` / `--`.
+- **`try` / `catch` / `throw`**: throw any value; nested handlers re-throw to
+  the next enclosing `catch`; runtime errors (division by zero, modulo by
+  zero, out-of-range array reads **and** writes, out-of-range string reads)
+  are catchable; uncaught values print `Uncaught error: …` and exit `1`. A
+  `;` between the `try` block and `catch` is tolerated.
+- The empty value is spelled **`null`** (there is no `nil`).
+- `console.log` / `warn` / `error` now take any number of values, separated by
+  a space, and format every value type correctly (including decimals, arrays
+  and dictionaries). Uncaught errors are printed in red on a terminal.
+- Syntax highlighting, completions and snippets updated for the new keywords
+  (`try`, `catch`, `throw`, `null`), types, built-ins and container literals.
+- The language reference (`docs/syntax.md`) has been rewritten for the dynamic
+  value model.
+
 ## [0.1.8] - 2026-09-19
 
 - **Semicolons are now required** after statements, matching the compiler's

@@ -26,6 +26,13 @@ typedef enum {
     AST_STRING,
     AST_INTERPOLATED_STRING,
     AST_BOOL_LITERAL,
+    AST_NULL_LITERAL,
+    AST_ARRAY_LITERAL,
+    AST_DICT_LITERAL,
+    AST_INDEX_EXPR,
+    AST_ASSIGN,
+    AST_TRY_STMT,
+    AST_THROW_STMT,
 } ASTNodeType;
 
 struct ASTNodeList {
@@ -76,6 +83,35 @@ typedef struct {
     ASTNodeList body;
 } CaseStmt;
 
+typedef struct {
+    ASTNodeList elements;
+} ArrayLiteral;
+
+typedef struct {
+    ASTNodeList keys;
+    ASTNodeList values;
+} DictLiteral;
+
+typedef struct {
+    ASTNode *object;
+    ASTNode *index;
+} IndexExpr;
+
+typedef struct {
+    ASTNode *target;
+    ASTNode *value;
+} Assign;
+
+typedef struct {
+    ASTNode *try_body;      // AST_BLOCK
+    StringView catch_name;
+    ASTNode *catch_body;    // AST_BLOCK
+} TryStmt;
+
+typedef struct {
+    ASTNode *value;
+} ThrowStmt;
+
 struct ASTNode {
     ASTNodeType type;
     size_t line;
@@ -98,8 +134,14 @@ struct ASTNode {
         struct { StringView name; } identifier;
         struct { StringView value; } number;
         struct { StringView value; } string;
-        struct { StringView value; } interpolated_string;
+        struct { ASTNodeList parts; } interpolated_string;
         struct { bool value; } bool_literal;
+        ArrayLiteral array_literal;
+        DictLiteral dict_literal;
+        IndexExpr index_expr;
+        Assign assign;
+        TryStmt try_stmt;
+        ThrowStmt throw_stmt;
     } as;
 };
 

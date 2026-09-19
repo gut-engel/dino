@@ -7,19 +7,22 @@ transpiler itself.
 ## Features
 
 - **Syntax highlighting** for `.dn` files
-  - keywords (`const`, `var`, `if`, `else`, `for`, `while`, `switch`, `case`, ...)
-  - types (`bool`, `int`, `float`, `void`)
-  - literals (`true`, `false`, numbers, strings, `$"..."` interpolated strings
-    with `{expr}` placeholders)
+  - keywords (`const`, `var`, `if`, `else`, `for`, `while`, `switch`, `case`,
+    `try`, `catch`, `throw`, ...)
+  - types (`bool`, `int`, `float`, `void`, `string`, `array`, `dict`)
+  - literals (`true`, `false`, `null`, numbers, strings, `$"..."` interpolated
+    strings with `{expr}` placeholders, array/dict literals)
   - built-ins (`console.log`, `console.warn`, `console.error`, `console.do`,
-    `delay`, `input`) — `warn` is color-coded yellow and `error` red
+    `delay`, `input`, `len`, `push`, `pop`, `has`, `keys`, `values`) — `warn` is
+    color-coded yellow and `error` red
   - operators, comments (`//`, `/* */`)
 - **Completions** (built-in provider)
   - `console` is suggested when you start typing it
   - after typing `console.` you get `log` / `warn` / `error` / `do` — accepted,
     they insert correctly (just the method name, cursor inside the parens)
   - statement completions with tab stops: `for`, `while`, `if`, `if else`,
-    `switch`, `var`, `const`, `delay`, `input`
+    `switch`, `var`, `const`, `func`, `try`, `throw`, `array`, `dict`, `len`,
+    `push`, `pop`, `has`, `keys`, `values`, `delay`, `input`
   - keywords, types and literals
 - **Language configuration**: bracket matching / auto-closing pairs, comment
   toggling (`Ctrl+/`), indentation rules for blocks
@@ -34,9 +37,9 @@ From a `.vsix` package (build it with `make vsix` in the repo root, which
 produces `dino-language-<version>.vsix`):
 
 ```sh
-code --install-extension dino-language-0.1.1.vsix
-# or on VS Codium:
-codium --install-extension dino-language-0.1.1.vsix
+code --install-extension dino-language-<version>.vsix
+# or on VS Codium (--force must come before --install-extension):
+codium --force --install-extension dino-language-<version>.vsix
 ```
 
 Or run the extension in a development host: open this folder in VS Code and

@@ -52,6 +52,13 @@ static const char *ast_node_type_name(ASTNodeType type) {
         case AST_STRING: return "String";
         case AST_INTERPOLATED_STRING: return "InterpolatedString";
         case AST_BOOL_LITERAL: return "BoolLiteral";
+        case AST_NULL_LITERAL: return "NullLiteral";
+        case AST_ARRAY_LITERAL: return "ArrayLiteral";
+        case AST_DICT_LITERAL: return "DictLiteral";
+        case AST_INDEX_EXPR: return "IndexExpr";
+        case AST_ASSIGN: return "Assign";
+        case AST_TRY_STMT: return "TryStmt";
+        case AST_THROW_STMT: return "ThrowStmt";
     }
     return "Unknown";
 }
@@ -222,12 +229,65 @@ void ast_print(ASTNode *node, int indent) {
             printf("value: %.*s\n", (int)node->as.string.value.length, node->as.string.value.data);
             break;
         case AST_INTERPOLATED_STRING:
-            print_indent(indent + 1);
-            printf("value: %.*s\n", (int)node->as.interpolated_string.value.length, node->as.interpolated_string.value.data);
+            for (size_t i = 0; i < node->as.interpolated_string.parts.count; i++) {
+                print_indent(indent + 1);
+                printf("part %zu:\n", i);
+                ast_print(node->as.interpolated_string.parts.nodes[i], indent + 2);
+            }
             break;
         case AST_BOOL_LITERAL:
             print_indent(indent + 1);
             printf("value: %s\n", node->as.bool_literal.value ? "true" : "false");
+            break;
+        case AST_NULL_LITERAL:
+            print_indent(indent + 1);
+            printf("null\n");
+            break;
+        case AST_ARRAY_LITERAL:
+            for (size_t i = 0; i < node->as.array_literal.elements.count; i++) {
+                print_indent(indent + 1);
+                printf("element %zu:\n", i);
+                ast_print(node->as.array_literal.elements.nodes[i], indent + 2);
+            }
+            break;
+        case AST_DICT_LITERAL:
+            for (size_t i = 0; i < node->as.dict_literal.keys.count; i++) {
+                print_indent(indent + 1);
+                printf("entry %zu key:\n", i);
+                ast_print(node->as.dict_literal.keys.nodes[i], indent + 2);
+                print_indent(indent + 1);
+                printf("entry %zu value:\n", i);
+                ast_print(node->as.dict_literal.values.nodes[i], indent + 2);
+            }
+            break;
+        case AST_INDEX_EXPR:
+            print_indent(indent + 1);
+            printf("object:\n");
+            ast_print(node->as.index_expr.object, indent + 2);
+            print_indent(indent + 1);
+            printf("index:\n");
+            ast_print(node->as.index_expr.index, indent + 2);
+            break;
+        case AST_ASSIGN:
+            print_indent(indent + 1);
+            printf("target:\n");
+            ast_print(node->as.assign.target, indent + 2);
+            print_indent(indent + 1);
+            printf("value:\n");
+            ast_print(node->as.assign.value, indent + 2);
+            break;
+        case AST_TRY_STMT:
+            print_indent(indent + 1);
+            printf("try:\n");
+            ast_print(node->as.try_stmt.try_body, indent + 2);
+            print_indent(indent + 1);
+            printf("catch (%.*s):\n", (int)node->as.try_stmt.catch_name.length, node->as.try_stmt.catch_name.data);
+            ast_print(node->as.try_stmt.catch_body, indent + 2);
+            break;
+        case AST_THROW_STMT:
+            print_indent(indent + 1);
+            printf("value:\n");
+            ast_print(node->as.throw_stmt.value, indent + 2);
             break;
     }
 }

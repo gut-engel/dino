@@ -32,8 +32,12 @@ typedef enum {
     TOKEN_VOID,
     TOKEN_TRUE,
     TOKEN_FALSE,
+    TOKEN_NULL,
     TOKEN_CONSOLE,
     TOKEN_FUNC,
+    TOKEN_TRY,
+    TOKEN_CATCH,
+    TOKEN_THROW,
 
     // Operators
     TOKEN_PLUS,

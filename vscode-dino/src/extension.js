@@ -6,9 +6,9 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const KEYWORDS = ['const', 'var', 'if', 'else', 'for', 'while', 'switch', 'case', 'default', 'break', 'continue', 'return'];
-const TYPES = ['bool', 'int', 'float', 'void', 'string'];
-const LITERALS = ['true', 'false'];
+const KEYWORDS = ['const', 'var', 'if', 'else', 'for', 'while', 'switch', 'case', 'default', 'break', 'continue', 'return', 'try', 'catch', 'throw'];
+const TYPES = ['bool', 'int', 'float', 'void', 'string', 'array', 'dict'];
+const LITERALS = ['true', 'false', 'null'];
 const CONSOLE_METHODS = ['log', 'warn', 'error', 'do'];
 const METHOD_DOCS = {
   log: 'Print to stdout.',
@@ -71,6 +71,56 @@ const STATEMENT_SNIPPETS = [
     label: 'func',
     detail: 'function declaration (top-level only, returns nothing)',
     insertText: 'func ${1:name}(${2:type} ${3:param}) {\n\t$0\n}',
+  },
+  {
+    label: 'try',
+    detail: 'try / catch statement',
+    insertText: 'try {\n\t$1\n} catch (${2:err}) {\n\t$0\n};',
+  },
+  {
+    label: 'throw',
+    detail: 'throw a value (caught by the nearest try/catch)',
+    insertText: 'throw ${1:"message"};',
+  },
+  {
+    label: 'array',
+    detail: 'array literal',
+    insertText: 'var ${1:name} = [${2:value}];',
+  },
+  {
+    label: 'dict',
+    detail: 'dictionary literal',
+    insertText: 'var ${1:name} = {"${2:key}": ${3:value}};',
+  },
+  {
+    label: 'len',
+    detail: 'len(x) - length of a string, array or dictionary',
+    insertText: 'len(${1:x})',
+  },
+  {
+    label: 'push',
+    detail: 'push(array, value) - append to an array',
+    insertText: 'push(${1:array}, ${2:value});',
+  },
+  {
+    label: 'pop',
+    detail: 'pop(array) - remove and return the last element',
+    insertText: 'pop(${1:array})',
+  },
+  {
+    label: 'has',
+    detail: 'has(dict, key) - true when the dictionary contains the key',
+    insertText: 'has(${1:dict}, ${2:key})',
+  },
+  {
+    label: 'keys',
+    detail: 'keys(dict) - array of the dictionary\u2019s keys',
+    insertText: 'keys(${1:dict})',
+  },
+  {
+    label: 'values',
+    detail: 'values(dict) - array of the dictionary\u2019s values',
+    insertText: 'values(${1:dict})',
   },
 ];
 

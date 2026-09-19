@@ -84,7 +84,7 @@
       "patterns": [
         {
           "name": "keyword.control.dino",
-          "match": "\\b(if|else|for|while|switch|case|default|break|continue|return)\\b"
+          "match": "\\b(if|else|for|while|switch|case|default|break|continue|return|try|catch|throw)\\b"
         },
         {
           "name": "keyword.declaration.dino",
@@ -96,11 +96,11 @@
         },
         {
           "name": "storage.type.dino",
-          "match": "\\b(bool|int|float|void|string)\\b"
+          "match": "\\b(bool|int|float|void|string|array|dict)\\b"
         },
         {
           "name": "constant.language.dino",
-          "match": "\\b(true|false)\\b"
+          "match": "\\b(true|false|null)\\b"
         },
         {
           "name": "support.class.builtin.dino",
@@ -112,7 +112,7 @@
       "patterns": [
         {
           "name": "support.function.builtin.dino",
-          "match": "\\b(delay|input)\\b"
+          "match": "\\b(delay|input|len|push|pop|has|keys|values)\\b"
         }
       ]
     },

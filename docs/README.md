@@ -5,7 +5,7 @@ The code lives in `src/`; the editor extension in `vscode-dino/`.
 
 | Document                        | Contents                                          |
 | ------------------------------- | ------------------------------------------------- |
-| [syntax.md](syntax.md)          | Complete language reference: types, statements, expressions, built-ins, errors |
+| [syntax.md](syntax.md)          | Complete language reference: dynamic values, statements, expressions, built-ins, errors |
 | [commands.md](commands.md)      | CLI usage, Makefile targets, extension install/build commands, quick start |
 
 - **Project layout** — see the compact map in the root [README](../README.md#project-layout).

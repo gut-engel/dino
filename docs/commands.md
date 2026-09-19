@@ -35,7 +35,7 @@ CC=clang ./dino example.dn              # use a different C compiler
 | `-o <exe>`       | Output executable name (default: `./<input stem>`)         |
 | `<exe>`          | A bare (non-flag) argument is treated like `-o`            |
 | `--doNotCompile` | Transpile to C only; skip the C compiler (alias: `--no-compile`) |
-| `--check`        | Syntax/type check only; writes nothing, prints `Syntax OK: '<file>'` |
+| `--check`        | Syntax/semantic check only; writes nothing, prints `Syntax OK: '<file>'` |
 
 Any other `-…` flag is rejected with `Error: unknown option '<flag>'` +
 usage, exit code 1.
@@ -90,9 +90,9 @@ Run from the repository root. Requires `make`, a C compiler, and Python 3
 | `make clean` | removes the `dino` binary, the `CCode/` directory, and the `.vsix` |
 
 ```sh
-make                # -> ./dino  and  dino-language-0.1.2.vsix
+make                # -> ./dino  and  dino-language-<version>.vsix
 make dino           # -> ./dino
-make vsix           # -> dino-language-0.1.2.vsix
+make vsix           # -> dino-language-<version>.vsix
 make clean
 ```
 
@@ -168,13 +168,16 @@ loaded.
 
 ### Editor features
 
-- Syntax highlighting for `.dn` (keywords, types, literals, strings,
-  interpolated strings, `console.*`, built-ins, operators, comments)
+- Syntax highlighting for `.dn` (keywords, types, literals incl. `null`,
+  strings, interpolated strings, `console.*`, built-ins, operators, comments)
 - Validation diagnostics from the `dino --check` compiler (red squiggles +
   messages; see above)
-- Completion provider: `console` + `console.log/warn/error/do`, keywords,
-  types, literals, user-defined functions, and statement snippets (`for`,
-  `while`, `if`, `switch`, `var`, `const`, `func`, `delay`, `input`)
+- Completion provider: `console` + `console.log/warn/error/do`, keywords
+  (`try`/`catch`/`throw`), types (`bool`, `int`, `float`, `void`, `string`,
+  `array`, `dict`), literals (`true`, `false`, `null`), user-defined functions,
+  built-in helpers (`len`, `push`, `pop`, `has`, `keys`, `values`), and
+  statement snippets (`for`, `while`, `if`, `switch`, `var`, `const`, `func`,
+  `try`, `throw`, `array`, `dict`, `delay`, `input`)
 - Language configuration: bracket auto-pairs, comment toggling (`Ctrl+/`),
   block indentation
 

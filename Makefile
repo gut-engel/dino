@@ -8,6 +8,7 @@ SRC = \
 	src/lexer/lexer.c \
 	src/ast/ast.c \
 	src/parser/parser.c \
+	src/codegen/runtime.c \
 	src/codegen/codegen.c
 INC = -Isrc
 

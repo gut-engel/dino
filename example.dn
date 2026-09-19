@@ -36,14 +36,14 @@ delay(0.5); // ...or a fraction
 greet("Stefan");
 
 try {
-   console.log(anundefinedvariable);
+    console.log(array[8]);
 };
-catch (e) {
-    console.log(e);
+catch (e){
+    console.error(e);
 };
 
 console.log(dictionary.key[2]); //Outputs "Favorite food"
-console.log(dictionary.value(2))//Outputs "noodles"
+console.log(dictionary.value(2));//Outputs "noodles"
 console.log(dictionary.valueOfKey[2]);//Outputs "noodles"
 console.log(dictionary.valueOfKey["Age"]); //Outputs "15"
 

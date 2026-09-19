@@ -6,9 +6,11 @@ resulting executable is placed next to your input file.
 
 ![docs](docs/) — full documentation lives in [`docs/`](docs/README.md):
 
-- **[Language reference](docs/syntax.md)** — types, declarations, `func`
-  functions, statements, expressions, interpolated strings, built-ins
-  (`console.*`, `delay`, `input`), compile-time errors.
+- **[Language reference](docs/syntax.md)** — dynamic values (incl. arrays and
+  dictionaries), declarations, `func` functions, statements
+  (`if`/`for`/`while`/`switch`/`try`), expressions, interpolated strings,
+  built-ins (`console.*`, `delay`, `input`, `len`, `push`, `pop`, `has`,
+  `keys`, `values`), compile-time errors.
 - **[Commands](docs/commands.md)** — `dino` CLI usage, Makefile targets, the
   VS Code / VS Codium extension commands, quick start.
 
@@ -42,15 +44,18 @@ on `$PATH`. See [commands.md](docs/commands.md) for the full CLI.
 
 ```dn
 var name = input("What is your name? ");   // read a string from stdin
-console.log($"Hello, {name}!");            // interpolated string -> printf
+console.log($"Hello, {name}!");            // interpolated string -> dynamic formatter
 delay(1);                                  // sleep one second
 console.warn("done");                      // stderr is fine too
 ```
 
 ## Language at a glance
 
+Values are dynamic — a variable can hold a string, number, array or dictionary,
+and type annotations are optional hints. Statements still end with `;`.
+
 ```dn
-const bool boolean = true;          // typed constant
+const bool boolean = true;          // typed constant (types are advisory)
 
 // if / else — statements are terminated with ';' (after the closing '}')
 if (boolean) {
@@ -59,7 +64,7 @@ if (boolean) {
     console.error("also stderr");
 };
 
-// for loops with inferred or explicit types; bodies must be { ... }
+// for loops; bodies must be { ... }
 for (var i = 0; i < 10; i++) {
     // switch cases are runtime conditions -> if/else chains
     switch (i) {
@@ -72,19 +77,32 @@ for (var i = 0; i < 10; i++) {
     };
 };
 
-var name = "dino";                  // inferred const char *
-var x = 5;                          // inferred int
-var flag = false;                   // inferred _Bool
+var name = "dino";                  // string
+var x = 5;                          // int
+var flag = false;                   // bool
 var answer = input("Say hi: ");     // input() returns a string
+var xs = [1, 2.5, "three"];         // array (mixed values)
+var person = {"name": "Ada", age: 36};   // dictionary
+push(xs, "more");                   // arrays grow; xs[0] = 9 updates
+console.log(len(xs), xs[0], person["name"]);
+
+try {
+    console.log(1 / 0);
+} catch (err) {
+    console.error($"caught: {err}");
+};
 ```
 
-Features in brief: `const` / `var` with explicit (`bool`, `int`, `float`,
-`void`) or inferred types · `if`/`else`, `while`, `for`, `switch`/`case`/
-`default` · `break` / `continue` · `console.log` / `warn` / `error` (stdout /
-stderr) · `console.do` (shells out with `system()`) · `delay(seconds)` ·
-`input(prompt)` · interpolated strings `$"..."` with `{expr}` placeholders ·
-full operator set (`* / % + - < <= > >= == != && ||`, prefix `-`/`!`, postfix
-`++`/`--`) · `//` and `/* */` comments.
+Features in brief: dynamic values (`null`, `bool`, `int`, `float`, `string`,
+`array`, `dict`) with optional type annotations · assignment (`=`, `x[i] = v`,
+`d[k] = v`, `++`/`--`) · `if`/`else`, `while`, `for`, `switch`/`case`/
+`default` · `break` / `continue` · `try` / `catch` / `throw` (nested;
+uncaught errors abort with a message) · `console.log` / `warn` / `error`
+(stdout / stderr, colourised on a terminal) · `console.do` (shells out with
+`system()`) · `delay(seconds)` · `input(prompt)` · `len`, `push`, `pop`,
+`has`, `keys`, `values` · interpolated strings `$"..."` with `{expr}`
+placeholders · full operator set (`* / % + - < <= > >= == != && ||`, prefix
+`-`/`!`, postfix `++`/`--`) · `//` and `/* */` comments.
 
 ## Project layout
 

@@ -7,6 +7,7 @@ Parser parser_new(const char *source, size_t length, Arena *arena) {
     parser.previous = (Token){.type = TOKEN_EOF, .lexeme = sv_from_cstr(""), .line = 0, .column = 0};
     parser.had_error = false;
     parser.panic_mode = false;
+    parser.quiet = false;
     parser.error_count = 0;
     parser.arena = arena;
     return parser;
@@ -19,11 +20,20 @@ static void advance(Parser *parser) {
     }
 }
 
+// One-token lookahead. The lexer is a plain value, so a copy can be advanced
+// without disturbing the parser.
+static Token peek(Parser *parser) {
+    Lexer copy = parser->lexer;
+    return lexer_next_token(&copy);
+}
+
 static void error_at(Parser *parser, Token token, const char *message) {
     if (parser->panic_mode) return;
     parser->panic_mode = true;
     parser->had_error = true;
     parser->error_count++;
+
+    if (parser->quiet) return; // sub-parsers just flag the error
 
     fprintf(stderr, "[line %zu, col %zu] Error", token.line, token.column);
     if (token.type == TOKEN_EOF) {
@@ -108,6 +118,64 @@ static ASTNode *type_node(Parser *parser) {
     return node;
 }
 
+// Split an interpolated string token (e.g. $"a{b}c") into AST parts: quoted
+// AST_STRING text nodes alternating with parsed expressions. Parsing the inner
+// expressions here means codegen sees real AST nodes (with the dynamic value
+// runtime) rather than raw source text.
+static void parse_interpolation(Parser *parser, StringView sv, ASTNode *node) {
+    Arena *arena = parser->arena;
+    ast_node_list_init(arena, &node->as.interpolated_string.parts);
+
+    StringBuilder text = sb_new();
+    size_t i = 2; // skip '$' and the opening quote
+    while (i < sv.length - 1) { // stop before the closing quote
+        if (sv.data[i] == '{') {
+            // Flush accumulated text as a quoted string literal node.
+            size_t tlen = text.length;
+            char *buf = ARENA_ALLOC_ARRAY(arena, char, tlen + 2);
+            buf[0] = '"';
+            if (tlen) memcpy(buf + 1, text.data, tlen);
+            buf[tlen + 1] = '"';
+            ASTNode *txt = ast_new(arena, AST_STRING, parser->previous.line, parser->previous.column);
+            txt->as.string.value = sv_from_parts(buf, tlen + 2);
+            ast_node_list_push(arena, &node->as.interpolated_string.parts, txt);
+            text.length = 0;
+
+            i++;
+            size_t start = i;
+            while (i < sv.length - 1 && sv.data[i] != '}') i++;
+            StringView expr_src = sv_from_parts(sv.data + start, i - start);
+
+            Parser sub = parser_new(expr_src.data, expr_src.length, arena);
+            sub.quiet = true;
+            ASTNode *expr = expression(&sub);
+            if (sub.had_error || sub.current.type != TOKEN_EOF) {
+                // Report at the interpolated string in the real source; the
+                // sub-parser's own (sub-string-relative) message is suppressed.
+                error_at(parser, parser->previous, "Invalid expression inside interpolated string.");
+                // Recover with null so codegen can keep going.
+                expr = ast_new(arena, AST_NULL_LITERAL, parser->previous.line, parser->previous.column);
+            }
+            ast_node_list_push(arena, &node->as.interpolated_string.parts, expr);
+            i++; // skip '}'
+        } else {
+            sb_append_char(&text, sv.data[i]);
+            i++;
+        }
+    }
+
+    // Trailing text.
+    size_t tlen = text.length;
+    char *buf = ARENA_ALLOC_ARRAY(arena, char, tlen + 2);
+    buf[0] = '"';
+    if (tlen) memcpy(buf + 1, text.data, tlen);
+    buf[tlen + 1] = '"';
+    ASTNode *txt = ast_new(arena, AST_STRING, parser->previous.line, parser->previous.column);
+    txt->as.string.value = sv_from_parts(buf, tlen + 2);
+    ast_node_list_push(arena, &node->as.interpolated_string.parts, txt);
+    sb_free(&text);
+}
+
 static ASTNode *primary(Parser *parser) {
     if (match(parser, TOKEN_TRUE)) {
         ASTNode *node = ast_new(parser->arena, AST_BOOL_LITERAL, parser->previous.line, parser->previous.column);
@@ -117,6 +185,39 @@ static ASTNode *primary(Parser *parser) {
     if (match(parser, TOKEN_FALSE)) {
         ASTNode *node = ast_new(parser->arena, AST_BOOL_LITERAL, parser->previous.line, parser->previous.column);
         node->as.bool_literal.value = false;
+        return node;
+    }
+    if (match(parser, TOKEN_NULL)) {
+        return ast_new(parser->arena, AST_NULL_LITERAL, parser->previous.line, parser->previous.column);
+    }
+    if (match(parser, TOKEN_LBRACKET)) {
+        // Array literal: [a, b, c]
+        ASTNode *node = ast_new(parser->arena, AST_ARRAY_LITERAL, parser->previous.line, parser->previous.column);
+        ast_node_list_init(parser->arena, &node->as.array_literal.elements);
+        if (!check(parser, TOKEN_RBRACKET)) {
+            do {
+                ast_node_list_push(parser->arena, &node->as.array_literal.elements, expression(parser));
+            } while (match(parser, TOKEN_COMMA));
+        }
+        consume(parser, TOKEN_RBRACKET, "Expect ']' after array elements.");
+        return node;
+    }
+    if (match(parser, TOKEN_LBRACE)) {
+        // Dictionary literal: {"key": value, ...}. Only reachable in expression
+        // context — a '{' at the start of a statement is parsed as a block.
+        ASTNode *node = ast_new(parser->arena, AST_DICT_LITERAL, parser->previous.line, parser->previous.column);
+        ast_node_list_init(parser->arena, &node->as.dict_literal.keys);
+        ast_node_list_init(parser->arena, &node->as.dict_literal.values);
+        if (!check(parser, TOKEN_RBRACE)) {
+            do {
+                ASTNode *key = expression(parser);
+                consume(parser, TOKEN_COLON, "Expect ':' after dictionary key.");
+                ASTNode *value = expression(parser);
+                ast_node_list_push(parser->arena, &node->as.dict_literal.keys, key);
+                ast_node_list_push(parser->arena, &node->as.dict_literal.values, value);
+            } while (match(parser, TOKEN_COMMA));
+        }
+        consume(parser, TOKEN_RBRACE, "Expect '}' after dictionary entries.");
         return node;
     }
     if (match(parser, TOKEN_NUMBER)) {
@@ -131,7 +232,7 @@ static ASTNode *primary(Parser *parser) {
     }
     if (match(parser, TOKEN_INTERPOLATED_STRING)) {
         ASTNode *node = ast_new(parser->arena, AST_INTERPOLATED_STRING, parser->previous.line, parser->previous.column);
-        node->as.interpolated_string.value = parser->previous.lexeme;
+        parse_interpolation(parser, parser->previous.lexeme, node);
         return node;
     }
     if (match(parser, TOKEN_IDENTIFIER) || match(parser, TOKEN_CONSOLE)) {
@@ -150,6 +251,17 @@ static ASTNode *primary(Parser *parser) {
 
 static ASTNode *unary(Parser *parser) {
     if (match_any(parser, 2, (TokenType[]){TOKEN_MINUS, TOKEN_BANG})) {
+        Token op = parser->previous;
+        ASTNode *operand = unary(parser);
+        ASTNode *node = ast_new(parser->arena, AST_UNARY_EXPR, op.line, op.column);
+        node->as.unary_expr.op = op.lexeme;
+        node->as.unary_expr.operand = operand;
+        node->as.unary_expr.is_prefix = true;
+        return node;
+    }
+    // Prefix ++ / -- (the postfix forms are handled in `call`). Both yield the
+    // new value; codegen mutates the operand in place via _dino_inc/_dino_dec.
+    if (match_any(parser, 2, (TokenType[]){TOKEN_PLUS_PLUS, TOKEN_MINUS_MINUS})) {
         Token op = parser->previous;
         ASTNode *operand = unary(parser);
         ASTNode *node = ast_new(parser->arena, AST_UNARY_EXPR, op.line, op.column);
@@ -267,6 +379,13 @@ static ASTNode *call(Parser *parser) {
             }
             consume(parser, TOKEN_RPAREN, "Expect ')' after arguments.");
             callee = call_node;
+        } else if (match(parser, TOKEN_LBRACKET)) {
+            ASTNode *index = expression(parser);
+            consume(parser, TOKEN_RBRACKET, "Expect ']' after index.");
+            ASTNode *node = ast_new(parser->arena, AST_INDEX_EXPR, callee->line, callee->column);
+            node->as.index_expr.object = callee;
+            node->as.index_expr.index = index;
+            callee = node;
         } else if (match(parser, TOKEN_PLUS_PLUS) || match(parser, TOKEN_MINUS_MINUS)) {
             Token op = parser->previous;
             ASTNode *inc = ast_new(parser->arena, AST_UNARY_EXPR, op.line, op.column);
@@ -281,8 +400,24 @@ static ASTNode *call(Parser *parser) {
     return callee;
 }
 
+// Assignment is the lowest-precedence, right-associative operator so that
+// `a = b = c` and `xs[i] = v` parse. `=` is only valid for lvalue targets;
+// that is enforced during codegen.
+static ASTNode *assignment(Parser *parser) {
+    ASTNode *left = logical_or(parser);
+    if (match(parser, TOKEN_EQ)) {
+        Token op = parser->previous;
+        ASTNode *right = assignment(parser);
+        ASTNode *node = ast_new(parser->arena, AST_ASSIGN, op.line, op.column);
+        node->as.assign.target = left;
+        node->as.assign.value = right;
+        return node;
+    }
+    return left;
+}
+
 static ASTNode *expression(Parser *parser) {
-    return logical_or(parser);
+    return assignment(parser);
 }
 
 // Variable declaration: [const|var] [type]? name = initializer ;
@@ -296,6 +431,19 @@ static ASTNode *var_declaration(Parser *parser) {
     if (is_type_token(parser->current.type)) {
         advance(parser);
         type_node_val = type_node(parser);
+        // Optional '[]' array suffix, e.g. `int[] xs`.
+        if (match(parser, TOKEN_LBRACKET)) {
+            consume(parser, TOKEN_RBRACKET, "Expect ']' after '[' in array type.");
+        }
+    } else if (check(parser, TOKEN_IDENTIFIER) && peek(parser).type == TOKEN_IDENTIFIER) {
+        // Identifier-based type name (string, array, dict, or a user type)
+        // followed by the variable name. These names are not reserved, so
+        // `const string array = ...` still works with `array` as the name.
+        advance(parser);
+        type_node_val = type_node(parser);
+        if (match(parser, TOKEN_LBRACKET)) {
+            consume(parser, TOKEN_RBRACKET, "Expect ']' after '[' in array type.");
+        }
     }
 
     if (check(parser, TOKEN_IDENTIFIER)) {
@@ -523,11 +671,21 @@ static ASTNode *func_declaration(Parser *parser) {
             if (is_type_token(parser->current.type)) {
                 advance(parser);
                 param->as.var_decl.type = type_node(parser);
-            } else if (check(parser, TOKEN_IDENTIFIER)) {
+                if (match(parser, TOKEN_LBRACKET)) {
+                    consume(parser, TOKEN_RBRACKET, "Expect ']' after '[' in array type.");
+                }
+            } else if (check(parser, TOKEN_IDENTIFIER) && peek(parser).type == TOKEN_IDENTIFIER) {
+                // Identifier-based type followed by a name: `MyType x`
                 Token t = parser->current;
                 advance(parser);
                 param->as.var_decl.type = ast_new(parser->arena, AST_IDENTIFIER, t.line, t.column);
                 param->as.var_decl.type->as.identifier.name = t.lexeme;
+                if (match(parser, TOKEN_LBRACKET)) {
+                    consume(parser, TOKEN_RBRACKET, "Expect ']' after '[' in array type.");
+                }
+            } else if (check(parser, TOKEN_IDENTIFIER)) {
+                // Untyped parameter — values are dynamic, so types are optional.
+                param->as.var_decl.type = NULL;
             } else {
                 error_current(parser, "Expect parameter type.");
                 synchronize(parser);
@@ -554,8 +712,48 @@ static ASTNode *func_declaration(Parser *parser) {
     return node;
 }
 
+// try { ... } catch (name) { ... };
+static ASTNode *try_statement(Parser *parser) {
+    Token keyword = parser->previous; // 'try'
+    ASTNode *try_body = block(parser);
+    // A ';' between the try block and `catch` is allowed (and ignored), so
+    // both `try { ... } catch (e) { ... };` and `try { ... }; catch (e) { ... };`
+    // are accepted.
+    match(parser, TOKEN_SEMICOLON);
+    consume(parser, TOKEN_CATCH, "Expect 'catch' after try block.");
+    consume(parser, TOKEN_LPAREN, "Expect '(' after 'catch'.");
+    if (!check(parser, TOKEN_IDENTIFIER)) {
+        error_current(parser, "Expect a name for the caught value.");
+        synchronize(parser);
+        return NULL;
+    }
+    Token name = parser->current;
+    advance(parser);
+    consume(parser, TOKEN_RPAREN, "Expect ')' after the catch name.");
+    ASTNode *catch_body = block(parser);
+    consume(parser, TOKEN_SEMICOLON, "Expect ';' after try/catch statement.");
+
+    ASTNode *node = ast_new(parser->arena, AST_TRY_STMT, keyword.line, keyword.column);
+    node->as.try_stmt.try_body = try_body;
+    node->as.try_stmt.catch_name = name.lexeme;
+    node->as.try_stmt.catch_body = catch_body;
+    return node;
+}
+
+// throw <expression>;
+static ASTNode *throw_statement(Parser *parser) {
+    Token keyword = parser->previous; // 'throw'
+    ASTNode *value = expression(parser);
+    consume(parser, TOKEN_SEMICOLON, "Expect ';' after throw value.");
+    ASTNode *node = ast_new(parser->arena, AST_THROW_STMT, keyword.line, keyword.column);
+    node->as.throw_stmt.value = value;
+    return node;
+}
+
 static ASTNode *statement(Parser *parser) {
     if (match(parser, TOKEN_IF)) return if_statement(parser);
+    if (match(parser, TOKEN_TRY)) return try_statement(parser);
+    if (match(parser, TOKEN_THROW)) return throw_statement(parser);
     if (match(parser, TOKEN_FOR)) return for_statement(parser);
     if (match(parser, TOKEN_WHILE)) return while_statement(parser);
     if (match(parser, TOKEN_SWITCH)) return switch_statement(parser);

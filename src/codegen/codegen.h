@@ -10,9 +10,6 @@ typedef struct {
     int indent_level;
     bool had_error;
     StringBuilder error_msg;
-    StringView *string_vars; // names declared/initialized as strings
-    size_t string_vars_count;
-    size_t string_vars_cap;
     // Lexical scope tracking: validates that value-context identifiers
     // reference a declared variable/parameter (or a known built-in).
     StringView *scope_names;
