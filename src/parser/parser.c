@@ -1,5 +1,4 @@
 #include "parser.h"
-#include <ctype.h>
 
 Parser parser_new(const char *source, size_t length, Arena *arena) {
     Parser parser;

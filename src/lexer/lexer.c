@@ -1,5 +1,5 @@
 #include "lexer.h"
-#include "common.h"
+#include "../common.h"
 #include <ctype.h>
 
 static char lexer_peek(Lexer *lexer) {

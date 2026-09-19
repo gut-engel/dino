@@ -1,7 +1,7 @@
 #ifndef AST_H
 #define AST_H
 
-#include "common.h"
+#include "../common.h"
 
 typedef struct ASTNode ASTNode;
 typedef struct ASTNodeList ASTNodeList;
