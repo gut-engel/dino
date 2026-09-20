@@ -8,9 +8,9 @@ resulting executable is placed next to your input file.
 
 - **[Language reference](docs/syntax.md)** — dynamic values (incl. arrays and
   dictionaries), declarations, `func` functions, `class` namespaces, statements
-  (`if`/`for`/`while`/`switch`/`try`), expressions, interpolated strings,
-  built-ins (`console.*`, `delay`, `input`, `len`, `push`, `pop`, `has`,
-  `keys`, `values`), compile-time errors.
+  (`if`/`for`/`while`/`switch`/`try`, plus `while … else`), expressions, interpolated strings,
+  built-ins (`console.*`, `delay`, `input`, `len`, `pop`, `has`,
+  `keys`, `values`) plus the member call `arr.push(v)`, compile-time errors.
 - **[Commands](docs/commands.md)** — `dino` CLI usage, Makefile targets, the
   VS Code / VS Codium extension commands, quick start.
 
@@ -83,7 +83,7 @@ var flag = false;                   // bool
 var answer = input("Say hi: ");     // input() returns a string
 var xs = [1, 2.5, "three"];         // array (mixed values)
 var person = {"name": "Ada", age: 36};   // dictionary
-push(xs, "more");                   // arrays grow; xs[0] = 9 updates
+xs.push("more");                   // arrays grow; xs[0] = 9 updates
 console.log(len(xs), xs[0], person["name"]);
 
 try {
@@ -95,14 +95,17 @@ try {
 
 Features in brief: dynamic values (`null`, `bool`, `int`, `float`, `string`,
 `array`, `dict`) with optional type annotations · assignment (`=`, `x[i] = v`,
-`d[k] = v`, `++`/`--`) · `if`/`else`, `while`, `for`, `switch`/`case`/
+`d[k] = v`, `++`/`--`) · `if`/`else`, `while … else`, `for`, `switch`/`case`/
 `default` · `break` / `continue` · `class` (static namespaces of methods and
 fields: `ClassName.method(...)`, `ClassName.field`) · `try` / `catch` /
 `throw` (nested;
 uncaught errors abort with a message) · `console.log` / `warn` / `error`
 (stdout / stderr, colourised on a terminal) · `console.do` (shells out with
-`system()`) · `delay(seconds)` · `input(prompt)` · `len`, `push`, `pop`,
-`has`, `keys`, `values` · interpolated strings `$"..."` with `{expr}`
+`system()`) · `delay(seconds)` · `input(prompt)` · `len`, `pop`, `has`,
+`keys`, `values` · `arr.push(v)` (append to an array, returns `arr`) ·
+`delete x[i]` (remove an array element or
+dictionary entry in place) · `xs.minimized` (drop duplicate array
+elements, keeping first occurrences) · interpolated strings `$"..."` with `{expr}`
 placeholders · full operator set (`* / % + - < <= > >= == != && ||`, prefix
 `-`/`!`, postfix `++`/`--`) · `//` and `/* */` comments.
 

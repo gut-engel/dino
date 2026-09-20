@@ -84,7 +84,7 @@
       "patterns": [
         {
           "name": "keyword.control.dino",
-          "match": "\\b(if|else|for|while|switch|case|default|break|continue|return|try|catch|throw)\\b"
+          "match": "\\b(if|else|for|while|switch|case|default|break|continue|return|try|catch|throw|delete)\\b"
         },
         {
           "name": "keyword.declaration.dino",
@@ -112,7 +112,7 @@
       "patterns": [
         {
           "name": "support.function.builtin.dino",
-          "match": "\\b(delay|input|len|push|pop|has|keys|values)\\b"
+          "match": "\\b(delay|input|len|pop|has|keys|values)\\b"
         }
       ]
     },

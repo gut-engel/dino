@@ -6,7 +6,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const KEYWORDS = ['const', 'var', 'if', 'else', 'for', 'while', 'switch', 'case', 'default', 'break', 'continue', 'return', 'try', 'catch', 'throw', 'class'];
+const KEYWORDS = ['const', 'var', 'if', 'else', 'for', 'while', 'switch', 'case', 'default', 'break', 'continue', 'return', 'try', 'catch', 'throw', 'delete', 'class'];
 const TYPES = ['bool', 'int', 'float', 'void', 'string', 'array', 'dict'];
 const LITERALS = ['true', 'false', 'null'];
 const CONSOLE_METHODS = ['log', 'warn', 'error', 'do'];
@@ -101,11 +101,6 @@ const STATEMENT_SNIPPETS = [
     label: 'len',
     detail: 'len(x) - length of a string, array or dictionary',
     insertText: 'len(${1:x})',
-  },
-  {
-    label: 'push',
-    detail: 'push(array, value) - append to an array',
-    insertText: 'push(${1:array}, ${2:value});',
   },
   {
     label: 'pop',

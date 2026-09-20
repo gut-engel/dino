@@ -175,7 +175,7 @@ loaded.
 - Completion provider: `console` + `console.log/warn/error/do`, keywords
   (`try`/`catch`/`throw`), types (`bool`, `int`, `float`, `void`, `string`,
   `array`, `dict`), literals (`true`, `false`, `null`), user-defined functions,
-  built-in helpers (`len`, `push`, `pop`, `has`, `keys`, `values`), and
+  built-in helpers (`len`, `pop`, `has`, `keys`, `values`) and `arr.push(v)`, and
   statement snippets (`for`, `while`, `if`, `switch`, `var`, `const`, `func`,
   `try`, `throw`, `array`, `dict`, `delay`, `input`)
 - Language configuration: bracket auto-pairs, comment toggling (`Ctrl+/`),

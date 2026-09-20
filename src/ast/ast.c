@@ -60,6 +60,7 @@ static const char *ast_node_type_name(ASTNodeType type) {
         case AST_ASSIGN: return "Assign";
         case AST_TRY_STMT: return "TryStmt";
         case AST_THROW_STMT: return "ThrowStmt";
+        case AST_DELETE_STMT: return "DeleteStmt";
     }
     return "Unknown";
 }
@@ -155,6 +156,11 @@ void ast_print(ASTNode *node, int indent) {
             print_indent(indent + 1);
             printf("body:\n");
             ast_print(node->as.while_stmt.body, indent + 2);
+            if (node->as.while_stmt.else_body) {
+                print_indent(indent + 1);
+                printf("else body:\n");
+                ast_print(node->as.while_stmt.else_body, indent + 2);
+            }
             break;
         case AST_SWITCH_STMT:
             print_indent(indent + 1);
@@ -298,6 +304,11 @@ void ast_print(ASTNode *node, int indent) {
             print_indent(indent + 1);
             printf("value:\n");
             ast_print(node->as.throw_stmt.value, indent + 2);
+            break;
+        case AST_DELETE_STMT:
+            print_indent(indent + 1);
+            printf("target:\n");
+            ast_print(node->as.delete_stmt.target, indent + 2);
             break;
     }
 }

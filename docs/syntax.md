@@ -4,8 +4,8 @@ Dino (`*.dn`) is a tiny, C-flavoured language that **transpiles to C** and is
 compiled with a C compiler. What you write is essentially a structured way of
 generating C: top-level `func` definitions become C functions, the rest of the
 program maps to a single C `main()`, and the standard library is a handful of
-built-ins (`console.*`, `delay`, `input`, `len`, `push`, `pop`, `has`, `keys`,
-`values`).
+built-ins (`console.*`, `delay`, `input`, `len`, `pop`, `has`, `keys`,
+`values`) plus the member call `arr.push(v)`.
 
 Values are **dynamic**: every variable, parameter and element holds a tagged
 `DinoValue` that can be `null`, a `bool`, an `int`, a `float`, a `string`, an
@@ -40,7 +40,7 @@ Identifiers start with a letter or `_` and continue with letters, digits or
 ```
 const  var    if     else   for    while
 switch case   default break  continue return
-try    catch  throw  func   class  console
+try    catch  throw  delete func   class  console
 null   bool   int    float  void   true
 false
 ```
@@ -264,9 +264,12 @@ console.log(xs[-1]);       // null  (the last element)
 console.log(xs.length);    // 5  (.len is an alias)
 console.log(len(xs));      // 5
 
-push(xs, "new");           // append (mutates the array)
+xs.push("new");            // append (mutates the array)
 console.log(pop(xs));      // "new" — remove and return the last element
 xs[1] = 99;                // element assignment
+delete xs[0];              // remove element 0 in place
+delete xs["three"];        // remove the first element equal to "three"
+console.log(xs.minimized); // a NEW array with duplicates removed
 ```
 
 - Negative indexes count from the end.
@@ -275,7 +278,27 @@ xs[1] = 99;                // element assignment
   `string index out of range` in the same way.
 - Indexing an array with a non-numeric key searches for a matching value and
   returns its index (or `null`): `console.log(xs["three"]); // 2`.
-- `push`, `pop` and element assignment work on the array in place.
+- `xs.push(v)`, `xs.pop()`, `delete` and element assignment work on the array
+  in place.
+
+`delete xs[i]` removes the entry `i` from the array (mutating it): a numeric
+`i` is the element index (negatives from the end, out of range **throws**), and
+a non-numeric `i` removes the first element equal to it. Deleting something
+that is not there is a no-op. `delete` works on dictionaries too — see §4.4.
+
+`xs.minimized` returns a **new** array with duplicate elements removed (the
+first occurrence of each element wins, preserving order); the original array is
+left untouched:
+
+```dn
+var pets = ["duck", "dog", "duck", "cat", "cat", "dog", "dog"];
+console.log(pets.minimized); // ["duck", "dog", "cat"]
+console.log(pets);           // ["duck", "dog", "duck", "cat", "cat", "dog", "dog"]
+```
+
+Duplicates are detected with the same equality `==` uses (so `1` and `true`
+count as the same number, and nested arrays/dictionaries are compared by
+identity).
 
 ### 4.4 Dictionaries
 
@@ -288,6 +311,7 @@ console.log(person["name"]);   // Ada
 console.log(person.age);       // 36 — `person.age` is `person["age"]`
 person["age"] = 37;            // update an entry
 person["city"] = "London";     // add an entry
+delete person["city"];         // remove an entry
 ```
 
 Access entries with `d[key]`. A key that is not present yields `null` (use
@@ -303,6 +327,10 @@ console.log(keys(person));         // ["name", "age", "langs", "city"]
 console.log(values(person));       // [ ... matching values ... ]
 ```
 
+`delete person[key]` removes that entry in place (a no-op when the key is
+absent), so `has` returns `false` afterwards — as does `person.deletePair[key]`,
+the equivalent member form (see below).
+
 The following member forms are also available as conveniences:
 
 | Member          | Meaning                                          |
@@ -311,25 +339,37 @@ The following member forms are also available as conveniences:
 | `.keys`            | array of keys                                   |
 | `.values`          | array of values                                 |
 | `.valueOfKey`      | the dictionary itself (so `d.valueOfKey[k]` looks up `k`) |
+| `.keyOfValue`      | the dictionary itself (so `d.keyOfValue[v]` finds the key stored under `v`) |
 | `d.value(i)`       | the *i*-th value / value for key `i`            |
 
 A dictionary can also be read in both directions by indexing `.value` and
-`.key`:
+`.key`, or modified with `.deletePair`:
 
 | Indexed form     | Meaning                                             |
 | ---------------- | --------------------------------------------------- |
 | `d.value[key]`   | the value stored under `key` (forward lookup, same as `d[key]`) |
 | `d.key[value]`   | the key whose stored value equals `value` (reverse lookup) |
+| `d.keyOfValue[value]` | the key whose stored value equals `value` (reverse lookup, same as `d.key[value]`) |
+| `d.deletePair[key]` | delete the entry stored under `key` (or the *n*-th entry for an integer index), returns the removed value |
 
 ```dn
 var person = {"name": "Ada", age: 36};
 console.log(person.value["age"]);   // 36
 console.log(person.key[36]);        // "age"
+console.log(person.keyOfValue["Ada"]);  // "name"
+console.log(person.deletePair["age"]);  // 36, and the "age" entry is now gone
 ```
 
-`d.key[value]` yields `null` when no entry has that value. An integer argument
-that is not itself a value falls back to the *n*-th key (0-based, negatives from
-the end), so `d.key[0]` is the first key and `.value[i]` the *i*-th value.
+`d.key[value]` / `d.keyOfValue[value]` yield `null` when no entry has that
+value. An integer argument that is not itself a value falls back to the *n*-th
+key (0-based, negatives from the end), so `d.key[0]` is the first key and
+`.value[i]` the *i*-th value.
+
+`d.deletePair[key]` removes the entry whose **key** equals `key`, or — when
+`key` is an integer that is not itself a stored key — the entry at that
+position (0-based, negatives from the end). Deleting an absent key or an
+out-of-range position is a no-op that yields `null`; otherwise the removed
+value is returned.
 
 > The member names above are special; **any other** `x.name` is sugar for
 > `x["name"]` (a string-key lookup, yielding `null` when absent), so
@@ -437,6 +477,29 @@ if (cond) {
 while (cond) {
     // ...
 };
+```
+
+`while` accepts an optional `else` block that runs **only when the loop body
+was never entered** (the condition was `false` from the start). A `break` or
+`continue` inside the body still counts as having entered the loop, so the
+`else` is skipped:
+
+```dn
+var i = 0;
+while (i < 5) {
+    i++;
+} else {
+    console.log("i never got started");   // not printed (loop ran)
+};
+
+var empty = [];
+var n = 0;
+while (n < empty.len) {
+    n++;
+} else {
+    console.log("nothing to iterate");    // printed (loop never ran)
+};
+```
 ```
 
 ### `for`
@@ -599,7 +662,7 @@ console.log($"Hello, {name}");
 | Call             | Result                                                        |
 | ---------------- | ------------------------------------------------------------- |
 | `len(x)`         | length of a string, array or dict (0 for anything else)       |
-| `push(arr, v)`   | append `v` to `arr`, returns `arr`                            |
+| `xs.push(v)`   | append `v` to `xs`, returns `xs`                       |
 | `pop(arr)`       | remove and return the last element (or `null`)                 |
 | `has(c, key)`    | for a dict: whether `key` is present; for an array: whether a matching value exists |
 | `keys(d)`        | array of a dict's keys                                        |

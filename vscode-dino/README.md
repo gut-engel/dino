@@ -22,7 +22,8 @@ transpiler itself.
   - literals (`true`, `false`, `null`, numbers, strings, `$"..."` interpolated
     strings with `{expr}` placeholders, array/dict literals)
   - built-ins (`console.log`, `console.warn`, `console.error`, `console.do`,
-    `delay`, `input`, `len`, `push`, `pop`, `has`, `keys`, `values`) — `warn` is
+    `delay`, `input`, `len`, `pop`, `has`, `keys`, `values` and the member call
+    `arr.push(v)`) — `warn` is
     color-coded yellow and `error` red
   - operators, comments (`//`, `/* */`)
 - **Completions** (built-in provider)
@@ -31,7 +32,7 @@ transpiler itself.
     they insert correctly (just the method name, cursor inside the parens)
   - statement completions with tab stops: `for`, `while`, `if`, `if else`,
     `switch`, `var`, `const`, `func`, `class`, `try`, `throw`, `array`, `dict`,
-    `len`, `push`, `pop`, `has`, `keys`, `values`, `delay`, `input`
+    `len`, `pop`, `has`, `keys`, `values`, `delay`, `input`
   - keywords, types and literals
 - **Language configuration**: bracket matching / auto-closing pairs, comment
   toggling (`Ctrl+/`), indentation rules for blocks

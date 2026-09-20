@@ -34,6 +34,7 @@ typedef enum {
     AST_ASSIGN,
     AST_TRY_STMT,
     AST_THROW_STMT,
+    AST_DELETE_STMT,
 } ASTNodeType;
 
 struct ASTNodeList {
@@ -79,6 +80,7 @@ typedef struct {
 typedef struct {
     ASTNode *condition;
     ASTNode *body;
+    ASTNode *else_body; // Can be NULL (`while (c) {...} else {...}`)
 } WhileStmt;
 
 typedef struct {
@@ -121,6 +123,10 @@ typedef struct {
     ASTNode *value;
 } ThrowStmt;
 
+typedef struct {
+    ASTNode *target; // AST_INDEX_EXPR: the container[index] to delete
+} DeleteStmt;
+
 struct ASTNode {
     ASTNodeType type;
     size_t line;
@@ -152,6 +158,7 @@ struct ASTNode {
         Assign assign;
         TryStmt try_stmt;
         ThrowStmt throw_stmt;
+        DeleteStmt delete_stmt;
     } as;
 };
 

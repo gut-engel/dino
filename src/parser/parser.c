@@ -556,11 +556,16 @@ static ASTNode *while_statement(Parser *parser) {
     consume(parser, TOKEN_RPAREN, "Expect ')' after while condition.");
 
     ASTNode *body = block(parser);
+    ASTNode *else_body = NULL;
+    if (match(parser, TOKEN_ELSE)) {
+        else_body = block(parser);
+    }
     consume(parser, TOKEN_SEMICOLON, "Expect ';' after while statement.");
 
     ASTNode *node = ast_new(parser->arena, AST_WHILE_STMT, keyword.line, keyword.column);
     node->as.while_stmt.condition = condition;
     node->as.while_stmt.body = body;
+    node->as.while_stmt.else_body = else_body;
     return node;
 }
 
@@ -785,10 +790,26 @@ static ASTNode *throw_statement(Parser *parser) {
     return node;
 }
 
+// delete <container>[<index>];
+static ASTNode *delete_statement(Parser *parser) {
+    Token keyword = parser->previous; // 'delete'
+    ASTNode *target = expression(parser);
+    if (target == NULL || target->type != AST_INDEX_EXPR) {
+        error_at(parser, keyword,
+                 "Expect 'delete container[index]' (an array/dict entry to delete).");
+        return NULL;
+    }
+    consume(parser, TOKEN_SEMICOLON, "Expect ';' after delete statement.");
+    ASTNode *node = ast_new(parser->arena, AST_DELETE_STMT, keyword.line, keyword.column);
+    node->as.delete_stmt.target = target;
+    return node;
+}
+
 static ASTNode *statement(Parser *parser) {
     if (match(parser, TOKEN_IF)) return if_statement(parser);
     if (match(parser, TOKEN_TRY)) return try_statement(parser);
     if (match(parser, TOKEN_THROW)) return throw_statement(parser);
+    if (match(parser, TOKEN_DELETE)) return delete_statement(parser);
     if (match(parser, TOKEN_FOR)) return for_statement(parser);
     if (match(parser, TOKEN_WHILE)) return while_statement(parser);
     if (match(parser, TOKEN_SWITCH)) return switch_statement(parser);

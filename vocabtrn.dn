@@ -1,6 +1,6 @@
 const dict vocab = {"hello": "Hallo", "duck": "Ente", "dog": "Hund"};
 var amountOfFalseAnswers = 0;
-var string notAnsweredCorrectly= [];
+var string notAnsweredCorrectly = [];
 
 for (var i = 0; i < vocab.len; i++) {
     if (vocab.key[i] == input($"Was heißt {vocab.value[i]} auf Englisch?")) {
@@ -9,8 +9,29 @@ for (var i = 0; i < vocab.len; i++) {
     else {
         console.error($"Falsch, richtig wäre {vocab.key[i]}");
         amountOfFalseAnswers++;
-        push(notAnsweredCorrectly, vocab.value[i]);
+        notAnsweredCorrectly.push(vocab.value[i]);
     };
 };
 
-console.log($"Diese Vokabeln musst du noch üben {notAnsweredCorrectly}");
+var bool correctOnFirstTry = false;
+
+while (notAnsweredCorrectly.len) {
+    for (var n = 0; n < notAnsweredCorrectly.len; n++) {
+        if (vocab.keyOfValue[notAnsweredCorrectly[n]] == input($"Was heißt {notAnsweredCorrectly[n]} auf Englisch?")) {
+        console.log("Richtig!");
+        delete notAnsweredCorrectly[n];
+        }
+        else {
+            console.error($"Falsch, richtig wäre {vocab.keyOfValue[notAnsweredCorrectly[n]]}");
+            amountOfFalseAnswers++;
+        };
+    };
+} else {
+    correctOnFirstTry = true;
+    console.log("Alles auf den ersten Versuch richtig");
+};
+
+if (!correctOnFirstTry) {
+    console.log($"So oft war deine Antwort falsch: {amountOfFalseAnswers}");
+    //console.log($"Diese Vokabeln musst du noch üben {notAnsweredCorrectly.minimized}"); Doesn't work yet, since there is no option for copying an array 
+};

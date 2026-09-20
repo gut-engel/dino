@@ -33,6 +33,7 @@ const char *token_type_name(TokenType type) {
         case TOKEN_TRY: return "TRY";
         case TOKEN_CATCH: return "CATCH";
         case TOKEN_THROW: return "THROW";
+        case TOKEN_DELETE: return "DELETE";
         case TOKEN_PLUS: return "PLUS";
         case TOKEN_MINUS: return "MINUS";
         case TOKEN_STAR: return "STAR";

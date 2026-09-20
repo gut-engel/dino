@@ -59,10 +59,34 @@ console.log(dictionary.key[2]); //Outputs "Favorite food"
 console.log(dictionary.value[2]);//Outputs "noodles"
 console.log(dictionary.valueOfKey[2]);//Outputs "noodles"
 console.log(dictionary.valueOfKey["Age"]); //Outputs "15"
+console.log(dictionary.keyOfValue["15"]); //Outputs "Age"
 
 console.log(array[2]);//Outputs "Stefan"
 console.log(array["Stefan"]);//Outputs 2
 console.log(array.len);//Outputs 3
+
+delete array[2];//removes "Stefan"
+console.log(array);//Outputs ["John", "Alex"]
+
+var rest = 0;
+while (rest > 5) {
+    rest++;
+} else {
+    console.log("while-else: loop never entered, so else ran");
+};
+
+var shopping = ["milk"];
+shopping.push("bread");//appends "bread"
+console.log(shopping);//Outputs ["milk", "bread"]
+
+var pets = ["duck", "dog", "duck", "cat", "cat", "dog", "dog"];
+console.log(pets.minimized);//Outputs ["duck", "dog", "cat"]
+
+delete dictionary["Favorite food"];//removes the value "noodles"
+console.log(dictionary);//Outputs {Name: John, Age: 15}
+console.log(dictionary.deletePair["Age"]);//removes "Age", outputs "15"
+console.log(dictionary.deletePair[0]);//removes the first entry, outputs "John"
+console.log(dictionary);//Outputs {}
 
 counters.count(15); //Outputs 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15
 counters.countBackwards(4); //Outputs 4 3 2 1 0

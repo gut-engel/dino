@@ -377,6 +377,52 @@ static void _dino_set(DinoValue obj, DinoValue key, DinoValue val) {
     }
 }
 
+/* `delete arr[i]` / `delete dict[k]`: remove an entry in place and return the
+ * removed value. A numeric key indexes an array (negatives from the end, and
+ * out of range throws like an out-of-range read); a non-numeric key removes
+ * the first array element equal to it, or the dictionary entry with that key.
+ * Nothing deleted yields null. */
+static DinoValue _dino_remove(DinoValue obj, DinoValue key) {
+    if (obj.type == DINO_ARRAY) {
+        DinoArray *a = obj.as.arr;
+        long long i;
+        if (_dino_is_num(key)) {
+            i = _dino_to_int(key);
+            if (i < 0) i += (long long)a->len;
+            if (i < 0 || (size_t)i >= a->len) _dino_throw(_dino_str("array index out of range"));
+        } else {
+            i = -1;
+            for (size_t j = 0; j < a->len; j++) {
+                if (_dino_equals(a->items[j], key)) { i = (long long)j; break; }
+            }
+            if (i < 0) return _dino_null();
+        }
+        DinoValue removed = a->items[i];
+        memmove(&a->items[i], &a->items[i + 1], sizeof(DinoValue) * (a->len - (size_t)i - 1));
+        a->len--;
+        return removed;
+    }
+    if (obj.type == DINO_DICT) {
+        DinoDict *d = obj.as.dict;
+        long long i = _dino_dict_find(d, key);
+        // A numeric key that is not a stored key falls back to the nth entry
+        // (0-based, negatives from the end), matching dict indexing reads.
+        if (i < 0 && _dino_is_num(key)) {
+            i = _dino_to_int(key);
+            if (i < 0) i += (long long)d->len;
+            if (i < 0 || (size_t)i >= d->len) return _dino_null();
+        }
+        if (i < 0) return _dino_null();
+        DinoValue removed = d->vals[i];
+        memmove(&d->keys[i], &d->keys[i + 1], sizeof(DinoValue) * (d->len - (size_t)i - 1));
+        memmove(&d->vals[i], &d->vals[i + 1], sizeof(DinoValue) * (d->len - (size_t)i - 1));
+        d->len--;
+        return removed;
+    }
+    _dino_throw(_dino_str("cannot delete from this value"));
+    return _dino_null();
+}
+
 static DinoValue _dino_len(DinoValue v) {
     if (v.type == DINO_STRING) return _dino_int((long long)strlen(v.as.s ? v.as.s : ""));
     if (v.type == DINO_ARRAY) return _dino_int((long long)v.as.arr->len);
@@ -417,6 +463,26 @@ static DinoValue _dino_values(DinoValue obj) {
     if (obj.type != DINO_DICT) return _dino_array_from(0, NULL);
     DinoArray *a = _dino_array_new();
     for (size_t i = 0; i < obj.as.dict->len; i++) _dino_array_push(a, obj.as.dict->vals[i]);
+    DinoValue v = _dino_null();
+    v.type = DINO_ARRAY;
+    v.as.arr = a;
+    return v;
+}
+
+/* `arr.minimized`: a NEW array with duplicate elements removed. The first
+ * occurrence of each element wins, so the original order is preserved and the
+ * input array is left untouched. Non-arrays yield an empty array. */
+static DinoValue _dino_minimize(DinoValue obj) {
+    if (obj.type != DINO_ARRAY) return _dino_array_from(0, NULL);
+    DinoArray *src = obj.as.arr;
+    DinoArray *a = _dino_array_new();
+    for (size_t i = 0; i < src->len; i++) {
+        bool seen = false;
+        for (size_t j = 0; j < a->len; j++) {
+            if (_dino_equals(a->items[j], src->items[i])) { seen = true; break; }
+        }
+        if (!seen) _dino_array_push(a, src->items[i]);
+    }
     DinoValue v = _dino_null();
     v.type = DINO_ARRAY;
     v.as.arr = a;

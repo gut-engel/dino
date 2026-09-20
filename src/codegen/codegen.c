@@ -135,13 +135,15 @@ static void class_free(Codegen *cg) {
 }
 
 // How `dict.key[...]` / `dict.value[...]` compiles. `.value[key]` reads the
-// value stored under a key (forward lookup); `.key[value]` finds the key whose
-// stored value matches (reverse lookup). Anything else, and class fields named
-// `key`/`value`, use ordinary indexing.
+// value stored under a key (forward lookup); `.key[value]` and
+// `.keyOfValue[value]` find the key whose stored value matches (reverse
+// lookup); `.deletePair[key]` removes the entry. Anything else, and class
+// fields named `key`/`value`, use ordinary indexing.
 typedef enum {
     DINO_INDEX_NORMAL,
     DINO_INDEX_VALUE,
     DINO_INDEX_KEY,
+    DINO_INDEX_DELETE,
 } DinoIndexKind;
 
 static DinoIndexKind index_view_kind(Codegen *cg, ASTNode *index_node) {
@@ -154,7 +156,8 @@ static DinoIndexKind index_view_kind(Codegen *cg, ASTNode *index_node) {
     }
     StringView prop = obj->as.member_expr.property;
     if (sv_eq(prop, sv_from_cstr("value"))) return DINO_INDEX_VALUE;
-    if (sv_eq(prop, sv_from_cstr("key"))) return DINO_INDEX_KEY;
+    if (sv_eq(prop, sv_from_cstr("key")) || sv_eq(prop, sv_from_cstr("keyOfValue"))) return DINO_INDEX_KEY;
+    if (sv_eq(prop, sv_from_cstr("deletePair"))) return DINO_INDEX_DELETE;
     return DINO_INDEX_NORMAL;
 }
 
@@ -381,6 +384,9 @@ static void codegen_expression(Codegen *cg, ASTNode *node) {
             if (kind == DINO_INDEX_KEY) {
                 emit(cg, "_dino_key_of_value(");
                 codegen_expression(cg, obj->as.member_expr.object);
+            } else if (kind == DINO_INDEX_DELETE) {
+                emit(cg, "_dino_remove(");
+                codegen_expression(cg, obj->as.member_expr.object);
             } else if (kind == DINO_INDEX_VALUE) {
                 emit(cg, "_dino_get(");
                 codegen_expression(cg, obj->as.member_expr.object);
@@ -500,12 +506,7 @@ static void codegen_expression(Codegen *cg, ASTNode *node) {
                     break;
                 }
                 if (sv_eq(name, sv_from_cstr("push"))) {
-                    if (nargs != 2) { error_at_node(cg, node, "push() expects 2 arguments (array, value)"); break; }
-                    emit(cg, "_dino_push(");
-                    codegen_expression(cg, node->as.call_expr.arguments.nodes[0]);
-                    emit(cg, ", ");
-                    codegen_expression(cg, node->as.call_expr.arguments.nodes[1]);
-                    emit(cg, ")");
+                    error_at_node(cg, node, "push() is now a member call, use arrayname.push(value)");
                     break;
                 }
                 if (sv_eq(name, sv_from_cstr("pop"))) {
@@ -534,6 +535,26 @@ static void codegen_expression(Codegen *cg, ASTNode *node) {
                 if (sv_eq(name, sv_from_cstr("values"))) {
                     if (nargs != 1) { error_at_node(cg, node, "values() expects exactly 1 argument (dict)"); break; }
                     emit(cg, "_dino_values(");
+                    codegen_expression(cg, node->as.call_expr.arguments.nodes[0]);
+                    emit(cg, ")");
+                    break;
+                }
+            }
+
+            // `arr.push(value)` appends to the array (the old function form
+            // push(arr, value) is gone). A class may still define its own
+            // `push` member, so a bare class name is left to class handling.
+            if (callee->type == AST_MEMBER_EXPR &&
+                sv_eq(callee->as.member_expr.property, sv_from_cstr("push"))) {
+                ASTNode *push_obj = callee->as.member_expr.object;
+                if (!(push_obj->type == AST_IDENTIFIER && class_find(cg, push_obj->as.identifier.name))) {
+                    if (nargs != 1) {
+                        error_at_node(cg, node, "arrayname.push() expects exactly 1 argument (value)");
+                        break;
+                    }
+                    emit(cg, "_dino_push(");
+                    codegen_expression(cg, push_obj);
+                    emit(cg, ", ");
                     codegen_expression(cg, node->as.call_expr.arguments.nodes[0]);
                     emit(cg, ")");
                     break;
@@ -718,12 +739,26 @@ static void codegen_expression(Codegen *cg, ASTNode *node) {
                 emit(cg, ")");
                 break;
             }
-            if (sv_eq(node->as.member_expr.property, sv_from_cstr("valueOfKey"))) {
+            if (sv_eq(node->as.member_expr.property, sv_from_cstr("minimized"))) {
+                // A new array with duplicate elements removed (first occurrence
+                // wins), so `arr.minimized` preserves order.
+                emit(cg, "_dino_minimize(");
+                codegen_expression(cg, node->as.member_expr.object);
+                emit(cg, ")");
+                break;
+            }
+            if (sv_eq(node->as.member_expr.property, sv_from_cstr("valueOfKey")) ||
+                sv_eq(node->as.member_expr.property, sv_from_cstr("keyOfValue"))) {
                 // Alias for the container itself, so `d.valueOfKey[k]` performs
-                // a lookup (by key, or positionally for an integer).
+                // a lookup (by key, or positionally for an integer), and
+                // `d.keyOfValue[v]` finds the key stored under `v` (the reverse).
                 emit(cg, "(");
                 codegen_expression(cg, node->as.member_expr.object);
                 emit(cg, ")");
+                break;
+            }
+            if (sv_eq(node->as.member_expr.property, sv_from_cstr("push"))) {
+                error_at_node(cg, node, "'push' is a member call and must be invoked: arrayname.push(value)");
                 break;
             }
             // Any other member name is a string-key lookup, so `person.name`
@@ -849,6 +884,39 @@ static void codegen_braced_body(Codegen *cg, ASTNode *body) {
     scope_pop(cg);
 }
 
+// `while (c) {...} else {...}`: the else block runs only when the loop body was
+// never entered (the condition was false from the start). A per-loop flag in a
+// C block records that; `break` / `continue` inside the body leave the flag set,
+// so the else is skipped whenever the body ran at least once.
+static void codegen_while_else(Codegen *cg, ASTNode *node) {
+    emit_indent(cg);
+    emit(cg, "{\n");
+    cg->indent_level++;
+    emit_indent(cg);
+    emit(cg, "bool _dino_w_ran = false;\n");
+    emit_indent(cg);
+    emit(cg, "while (_dino_truthy(");
+    codegen_expression(cg, node->as.while_stmt.condition);
+    emit(cg, ")) {\n");
+    cg->indent_level++;
+    emit_indent(cg);
+    emit(cg, "_dino_w_ran = true;\n");
+    scope_push(cg);
+    for (size_t i = 0; i < node->as.while_stmt.body->as.block.statements.count; i++) {
+        codegen_statement(cg, node->as.while_stmt.body->as.block.statements.nodes[i]);
+    }
+    scope_pop(cg);
+    cg->indent_level--;
+    emit_indent(cg);
+    emit(cg, "}\n");
+    emit_indent(cg);
+    emit(cg, "if (!_dino_w_ran) ");
+    codegen_braced_body(cg, node->as.while_stmt.else_body);
+    cg->indent_level--;
+    emit_indent(cg);
+    emit(cg, "}\n");
+}
+
 static void codegen_statement(Codegen *cg, ASTNode *node) {
     if (!node) return;
 
@@ -917,11 +985,16 @@ static void codegen_statement(Codegen *cg, ASTNode *node) {
             break;
 
         case AST_WHILE_STMT:
-            emit_indent(cg);
-            emit(cg, "while (_dino_truthy(");
-            codegen_expression(cg, node->as.while_stmt.condition);
-            emit(cg, ")) ");
-            codegen_braced_body(cg, node->as.while_stmt.body);
+            if (node->as.while_stmt.else_body &&
+                node->as.while_stmt.body->type == AST_BLOCK) {
+                codegen_while_else(cg, node);
+            } else {
+                emit_indent(cg);
+                emit(cg, "while (_dino_truthy(");
+                codegen_expression(cg, node->as.while_stmt.condition);
+                emit(cg, ")) ");
+                codegen_braced_body(cg, node->as.while_stmt.body);
+            }
             break;
 
         case AST_SWITCH_STMT: {
@@ -995,6 +1068,17 @@ static void codegen_statement(Codegen *cg, ASTNode *node) {
             emit_indent(cg);
             emit(cg, "_dino_throw(");
             codegen_expression(cg, node->as.throw_stmt.value);
+            emit(cg, ");");
+            emit_line(cg);
+            break;
+
+        case AST_DELETE_STMT:
+            // `delete arr[i]` / `delete dict[k]` removes that entry in place.
+            emit_indent(cg);
+            emit(cg, "_dino_remove(");
+            codegen_expression(cg, node->as.delete_stmt.target->as.index_expr.object);
+            emit(cg, ", ");
+            codegen_expression(cg, node->as.delete_stmt.target->as.index_expr.index);
             emit(cg, ");");
             emit_line(cg);
             break;
